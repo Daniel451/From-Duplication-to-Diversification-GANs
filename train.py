@@ -37,6 +37,7 @@ class GAN(pl.LightningModule):
         fake = torch.zeros(batch_size, 1).to(self.device)
 
         # Discriminator update
+        self.opt_g.zero_grad()
         self.opt_d.zero_grad()
         real_loss = self.criterion(self.discriminator(images), valid)
         fake_loss = self.criterion(
@@ -48,20 +49,43 @@ class GAN(pl.LightningModule):
 
         # Generator update
         self.opt_g.zero_grad()
+        self.opt_d.zero_grad()
         gen_imgs = self.generator(images, noise)
 
         loss_g = self.criterion(self.discriminator(gen_imgs), valid)
         self.manual_backward(loss_g)
         self.opt_g.step()
 
-        # Log generated images
-        if batch_idx % 400 == 0:
+        if batch_idx % 50 == 0:
             with torch.no_grad():
+                # log losses
+                self.logger.experiment.log(
+                    {
+                        "losses/d_fake": fake_loss,
+                        "losses/d_real": real_loss,
+                        "losses/d": loss_d,
+                        "losses/g": loss_g,
+                    }
+                )
+
+        # Log generated images
+        if batch_idx % 250 == 0:
+            with torch.no_grad():
+                # Log generated images
                 img_grid = torchvision.utils.make_grid(gen_imgs, normalize=True)
                 self.logger.experiment.log(
                     {
-                        "generated_images": [
+                        "images/generated": [
                             wandb.Image(img_grid, caption="Generated Images")
+                        ]
+                    }
+                )
+                # Log real images
+                img_grid_real = torchvision.utils.make_grid(images, normalize=True)
+                self.logger.experiment.log(
+                    {
+                        "images/real": [
+                            wandb.Image(img_grid_real, caption="Generated Images")
                         ]
                     }
                 )
@@ -73,10 +97,10 @@ class GAN(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer_g = torch.optim.Adam(
-            self.generator.parameters(), lr=0.0002, betas=(0.5, 0.999)
+            self.generator.get_generative_parameters(), lr=0.001, betas=(0.5, 0.9)
         )
         optimizer_d = torch.optim.Adam(
-            self.discriminator.parameters(), lr=0.0002, betas=(0.5, 0.999)
+            self.discriminator.parameters(), lr=0.001, betas=(0.5, 0.9)
         )
         # Get both optimizers
         self.opt_g = optimizer_g
@@ -85,7 +109,7 @@ class GAN(pl.LightningModule):
 
     def train_dataloader(self):
         logger.info("Loading training data...")
-        return get_cifar10_dataloader(batch_size=64, num_workers=2)[0]
+        return get_cifar10_dataloader(batch_size=128, num_workers=8)[0]
 
 
 current_time = datetime.now()

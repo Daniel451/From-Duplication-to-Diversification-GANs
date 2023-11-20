@@ -11,10 +11,19 @@ class CustomLayer(nn.Module):
         self,
         in_channels: int,
         out_channels: int,
-        norm_layer=nn.InstanceNorm2d,
+        norm_layer=None,
         activation_function=nn.LeakyReLU,
     ):
         super().__init__()
+
+        match norm_layer:
+            case None:
+                self.norm_layer = nn.Identity()
+            case nn.InstanceNorm2d | nn.BatchNorm2d:
+                self.norm_layer = norm_layer(out_channels)
+            case nn.LocalResponseNorm:
+                self.norm_layer = norm_layer(size=2)
+
         self.sequential = nn.Sequential(
             # 1st layer
             nn.Conv2d(
@@ -27,7 +36,7 @@ class CustomLayer(nn.Module):
                 padding=1,
             ),
             # TODO: Adaptive Instance Normalization
-            norm_layer(num_features=out_channels),
+            self.norm_layer,
             activation_function(),
         )
 
@@ -44,6 +53,7 @@ class DecodingModule(nn.Module):
     def __init__(
         self,
         in_channels: int,
+        out_channels: int,
         norm_layer=nn.InstanceNorm2d,
         activation_function=nn.LeakyReLU,
     ):
@@ -54,26 +64,29 @@ class DecodingModule(nn.Module):
         )
 
         self.sequential = nn.Sequential(
-            Layer(in_channels=in_channels, out_channels=int(in_channels * 1.5)),
+            Layer(in_channels=in_channels + 1, out_channels=int(in_channels * 1.5)),
             Layer(
                 in_channels=int(in_channels * 1.5), out_channels=int(in_channels * 1.5)
             ),
-            Layer(
-                in_channels=int(in_channels * 1.5), out_channels=int(in_channels * 2)
-            ),
+            Layer(in_channels=int(in_channels * 1.5), out_channels=out_channels),
         )
 
         self.shortcut = nn.Conv2d(
             in_channels=in_channels,
-            out_channels=int(in_channels * 2),
+            out_channels=out_channels,
             kernel_size=1,
             padding=0,
         )
 
     def forward(self, x):
+        b, c, h, w = x.shape
+        local_noise = torch.rand((b, 1, h, w)).to(x.device)
+
+        sequential_in = torch.cat((x, local_noise), dim=1)
+
         # print("x.shape", x.shape)
         # feed input to sequential module => compute output features
-        sequential_out = self.sequential(x)
+        sequential_out = self.sequential(sequential_in)
         # print("sequential.shape", sequential_out.shape)
         # transform input to match feature match size of output layer of sequential module
         transformed_input = self.shortcut(x)
@@ -83,23 +96,76 @@ class DecodingModule(nn.Module):
         return transformed_input + sequential_out
 
 
+class StackedDecodingModule(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        norm_layer=nn.InstanceNorm2d,
+        activation_function=nn.LeakyReLU,
+    ):
+        super().__init__()
+
+        self.decode1 = DecodingModule(
+            in_channels=in_channels,
+            out_channels=in_channels,
+            norm_layer=norm_layer,
+            activation_function=activation_function,
+        )
+        self.decode2 = DecodingModule(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            norm_layer=norm_layer,
+            activation_function=activation_function,
+        )
+        self.shortcut = nn.Conv2d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=1,
+            padding=0,
+        )
+
+    def forward(self, x):
+        out1 = self.decode1(x)
+        out2 = self.decode2(out1)
+        transformed_input = self.shortcut(x)
+        
+        residual = (transformed_input + out2)/2
+        
+        return residual
+
+
 class Generator(nn.Module):
     def __init__(self, device):
         super().__init__()
 
-        CustomDecodeModule = partial(
-            DecodingModule,
-            norm_layer=nn.InstanceNorm2d,
+        # CustomDecodeModule = partial(
+        #     DecodingModule,
+        #     # norm_layer=None,
+        #     # norm_layer=nn.InstanceNorm2d,
+        #     norm_layer=nn.BatchNorm2d,
+        #     # norm_layer=nn.LocalResponseNorm,
+        #     activation_function=nn.LeakyReLU,
+        # )
+        CustomStackedDecodeModule = partial(
+            StackedDecodingModule,
+            # norm_layer=None,
+            # norm_layer=nn.InstanceNorm2d,
+            norm_layer=nn.BatchNorm2d,
+            # norm_layer=nn.LocalResponseNorm,
             activation_function=nn.LeakyReLU,
         )
 
+
         # feature extractor for processing input images
         self.feature_extractor = timm.create_model(
-            "efficientnet_b0",
+            # "efficientnet_b0",
+            "edgenext_xx_small",
             pretrained=True,
             features_only=True,
             # TODO: test diffrent output indices for feature extraction
-            out_indices=[3],
+            # out_indices=[3], # efficientnet b0
+            out_indices=[2],  # edgenext_xx_small
         ).to(device)
 
         # generative module
@@ -108,22 +174,37 @@ class Generator(nn.Module):
             # TODO: figure out if upsampling or downsampling is needed (e.g.) timm output is too large or too small
             # *LAZY* conv2d layer which automatically calculates number of in_channels
             # from merged and outputs the specified channel
-            nn.LazyConv2d(out_channels=16, kernel_size=1, padding=0),
-            CustomDecodeModule(in_channels=16),
+            nn.LazyConv2d(out_channels=128, kernel_size=1, padding=0),
+
+            # 2x2
+            CustomStackedDecodeModule(in_channels=128, out_channels=64),
             nn.UpsamplingBilinear2d(scale_factor=2),
-            CustomDecodeModule(in_channels=32),
+
+            # 4x4
+            CustomStackedDecodeModule(in_channels=64, out_channels=32),
             nn.UpsamplingBilinear2d(scale_factor=2),
-            CustomDecodeModule(in_channels=64),
+
+            # 8x8
+            CustomStackedDecodeModule(in_channels=32, out_channels=16),
             nn.UpsamplingBilinear2d(scale_factor=2),
-            CustomDecodeModule(in_channels=128),
+
+            # 16x16
+            CustomStackedDecodeModule(in_channels=16, out_channels=16),
             nn.UpsamplingBilinear2d(scale_factor=2),
-            CustomLayer(
-                in_channels=256,
+
+            # 32x32
+            CustomStackedDecodeModule(in_channels=16, out_channels=8),
+            nn.Conv2d(
+                in_channels=8,
                 out_channels=3,
-                norm_layer=nn.InstanceNorm2d,
-                activation_function=nn.Identity,
+                kernel_size=3,
+                padding=1,
             ),
         )
+
+    def get_generative_parameters(self):
+        """Returns parameters of the generative module"""
+        return self.generative.parameters()
 
     def forward(self, img, noise):
         # extract features from image
@@ -138,6 +219,7 @@ class Generator(nn.Module):
 
         # compute output image
         output_img = self.generative(merged)
-        sigmoid_output_img = torch.sigmoid(output_img)
+        # sigmoid_output_img = torch.sigmoid(output_img)
+        transformed_output = torch.tanh(output_img)
 
-        return sigmoid_output_img
+        return transformed_output
