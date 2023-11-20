@@ -11,6 +11,14 @@
             "program": "src/test_architecture.py",
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "Debug Train",
+            "type": "python",
+            "request": "launch",
+            "program": "train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
         }
     ]
 }
