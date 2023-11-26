@@ -9,10 +9,29 @@ from src.models import Generator, Discriminator
 from src.data import get_cifar10_dataloader
 
 
+# TODO: try different weight init methods
+def init_weights(m):
+    if isinstance(m, (torch.nn.Conv2d, torch.nn.ConvTranspose2d, torch.nn.Linear)):
+        torch.nn.init.xavier_uniform_(m.weight)
+        torch.nn.init.constant_(m.bias, 0.0)
+    elif isinstance(m, torch.nn.BatchNorm2d):
+        torch.nn.init.normal_(m.weight)
+        torch.nn.init.constant_(m.bias, 0.0)
+
+
 class GAN(pl.LightningModule):
     def __init__(self):
         super(GAN, self).__init__()
+        # create generator
         self.generator = Generator(self.device).to(self.device)
+        # generator dummy call => init lazy layers
+        dummy_noise = torch.rand(size=(2, 56, 2, 2)).to(self.device)
+        dummy_images = torch.rand(size=(2, 3, 32, 32)).to(self.device)
+        self.generator(dummy_images, dummy_noise)
+        # initialize weights
+        for layer in self.generator.generative.modules():
+            layer.apply(init_weights)
+        # create discriminator
         self.discriminator = Discriminator().to(self.device)
 
         self.criterion = torch.nn.BCELoss()
@@ -33,8 +52,13 @@ class GAN(pl.LightningModule):
         noise = torch.rand(size=(batch_size, 56, 2, 2)).to(self.device)
 
         # Move the valid and fake tensors to the same device as the model
-        valid = torch.ones(batch_size, 1).to(self.device)
-        fake = torch.zeros(batch_size, 1).to(self.device)
+        # valid = torch.ones(batch_size, 1).to(self.device)
+        # fake = torch.zeros(batch_size, 1).to(self.device)
+
+        # soft labels
+        # TODO: try out more or less randomness
+        valid = torch.rand((batch_size, 1), device=self.device) * 0.1 + 0.9
+        fake = torch.rand((batch_size, 1), device=self.device) * 0.1
 
         # Discriminator update
         self.opt_g.zero_grad()
@@ -52,6 +76,7 @@ class GAN(pl.LightningModule):
         self.opt_d.zero_grad()
         gen_imgs = self.generator(images, noise)
 
+        # TODO: try out no soft-labels for generator (only for discriminator)
         loss_g = self.criterion(self.discriminator(gen_imgs), valid)
         self.manual_backward(loss_g)
         self.opt_g.step()
@@ -97,10 +122,11 @@ class GAN(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer_g = torch.optim.Adam(
-            self.generator.get_generative_parameters(), lr=0.001, betas=(0.5, 0.9)
+            self.generator.get_generative_parameters(), lr=0.0001, betas=(0.5, 0.999)
         )
+        # TODO: try out different learning rates for discriminator
         optimizer_d = torch.optim.Adam(
-            self.discriminator.parameters(), lr=0.001, betas=(0.5, 0.9)
+            self.discriminator.parameters(), lr=0.0001, betas=(0.5, 0.999)
         )
         # Get both optimizers
         self.opt_g = optimizer_g

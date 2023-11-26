@@ -108,12 +108,12 @@ class StackedDecodingModule(nn.Module):
 
         self.decode1 = DecodingModule(
             in_channels=in_channels,
-            out_channels=in_channels,
+            out_channels=int(in_channels/2),
             norm_layer=norm_layer,
             activation_function=activation_function,
         )
         self.decode2 = DecodingModule(
-            in_channels=in_channels,
+            in_channels=int(in_channels/2),
             out_channels=out_channels,
             norm_layer=norm_layer,
             activation_function=activation_function,
