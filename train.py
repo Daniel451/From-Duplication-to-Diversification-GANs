@@ -167,7 +167,7 @@ wandb.init(
     settings=wandb.Settings(mode="online"),
 )
 
-wandb_logger = WandbLogger(tags=["Wasserstein-Loss"])
+wandb_logger = WandbLogger()
 gpus = 1 if torch.cuda.is_available() else 0
 # start training
 logger.info("Starting training...")
