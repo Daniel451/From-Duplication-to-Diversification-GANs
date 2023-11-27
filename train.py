@@ -75,7 +75,7 @@ class GAN(pl.LightningModule):
             self.discriminator(self.generator(images, noise)), fake
         )
         loss_d = (real_loss + fake_loss) / 2
-        if self.d_ema_g_ema_diff > -0.4:
+        if self.d_ema_g_ema_diff > -0.2:
             self.manual_backward(loss_d)
             self.opt_d.step()
 
@@ -89,7 +89,7 @@ class GAN(pl.LightningModule):
 
         # TODO: try out no soft-labels for generator (only for discriminator)
         loss_g = self.criterion(self.discriminator(gen_imgs), valid)
-        if self.d_ema_g_ema_diff < 0.4:
+        if self.d_ema_g_ema_diff < 0.2:
             self.manual_backward(loss_g)
             self.opt_g.step()
 
