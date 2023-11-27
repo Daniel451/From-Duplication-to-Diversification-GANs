@@ -22,6 +22,7 @@ def init_weights(m):
 class GAN(pl.LightningModule):
     def __init__(self):
         super(GAN, self).__init__()
+
         # create generator
         self.generator = Generator(self.device).to(self.device)
         # generator dummy call => init lazy layers
@@ -31,8 +32,14 @@ class GAN(pl.LightningModule):
         # initialize weights
         for layer in self.generator.generative.modules():
             layer.apply(init_weights)
+
         # create discriminator
         self.discriminator = Discriminator().to(self.device)
+
+        # exponential moving average losses for G and D
+        self.g_ema = 0
+        self.d_ema = 0
+        self.d_ema_g_ema_diff = 0
 
         self.criterion = torch.nn.BCELoss()
         self.sample_val_images = None
@@ -68,8 +75,12 @@ class GAN(pl.LightningModule):
             self.discriminator(self.generator(images, noise)), fake
         )
         loss_d = (real_loss + fake_loss) / 2
-        self.manual_backward(loss_d)
-        self.opt_d.step()
+        if self.d_ema_g_ema_diff > -0.4:
+            self.manual_backward(loss_d)
+            self.opt_d.step()
+
+        # Update exponential moving average loss for D
+        self.d_ema = self.d_ema * 0.9 + loss_d.detach().item() * 0.1
 
         # Generator update
         self.opt_g.zero_grad()
@@ -78,8 +89,14 @@ class GAN(pl.LightningModule):
 
         # TODO: try out no soft-labels for generator (only for discriminator)
         loss_g = self.criterion(self.discriminator(gen_imgs), valid)
-        self.manual_backward(loss_g)
-        self.opt_g.step()
+        if self.d_ema_g_ema_diff < 0.4:
+            self.manual_backward(loss_g)
+            self.opt_g.step()
+
+        # Update exponential moving average loss for G
+        self.g_ema = self.g_ema * 0.9 + loss_g.detach().item() * 0.1
+
+        self.d_ema_g_ema_diff = self.d_ema - (self.g_ema/2)
 
         if batch_idx % 50 == 0:
             with torch.no_grad():
@@ -88,6 +105,9 @@ class GAN(pl.LightningModule):
                     {
                         "losses/d_fake": fake_loss,
                         "losses/d_real": real_loss,
+                        "losses/d_ema-g_ema": self.d_ema_g_ema_diff,
+                        "losses/d_ema": self.d_ema,
+                        "losses/g_ema": self.g_ema,
                         "losses/d": loss_d,
                         "losses/g": loss_g,
                     }
@@ -122,11 +142,11 @@ class GAN(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer_g = torch.optim.Adam(
-            self.generator.get_generative_parameters(), lr=0.0001, betas=(0.5, 0.999)
+            self.generator.get_generative_parameters(), lr=0.0002, betas=(0.5, 0.999)
         )
         # TODO: try out different learning rates for discriminator
         optimizer_d = torch.optim.Adam(
-            self.discriminator.parameters(), lr=0.0001, betas=(0.5, 0.999)
+            self.discriminator.parameters(), lr=0.0002, betas=(0.5, 0.999)
         )
         # Get both optimizers
         self.opt_g = optimizer_g
@@ -147,7 +167,7 @@ wandb.init(
     settings=wandb.Settings(mode="online"),
 )
 
-wandb_logger = WandbLogger()
+wandb_logger = WandbLogger(tags=["Wasserstein-Loss"])
 gpus = 1 if torch.cuda.is_available() else 0
 # start training
 logger.info("Starting training...")
