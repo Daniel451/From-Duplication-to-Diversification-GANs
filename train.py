@@ -19,6 +19,30 @@ def init_weights(m):
         torch.nn.init.constant_(m.bias, 0.0)
 
 
+def compute_gradient_penalty(critic, real_samples, fake_samples, device):
+    # Random weight term for interpolation between real and fake samples
+    alpha = torch.rand((real_samples.size(0), 1, 1, 1), device=device)
+    # Get random interpolation between real and fake samples
+    interpolates = (alpha * real_samples + ((1 - alpha) * fake_samples)).requires_grad_(True)
+    # Calculate critic's scores on interpolated images
+    mixed_scores = critic(interpolates)
+    
+    # Take the gradient of the scores with respect to the images
+    gradient = torch.autograd.grad(
+        inputs=interpolates,
+        outputs=mixed_scores,
+        grad_outputs=torch.ones(mixed_scores.size(), device=device),
+        create_graph=True,
+        retain_graph=True,
+        only_inputs=True
+    )[0]
+    
+    # Calculate the norm of the gradients
+    gradient_norm = gradient.norm(2, dim=1)
+    gradient_penalty = ((gradient_norm - 1) ** 2).mean()
+    return gradient_penalty
+
+
 class GAN(pl.LightningModule):
     def __init__(self):
         super(GAN, self).__init__()
@@ -36,10 +60,8 @@ class GAN(pl.LightningModule):
         # create discriminator
         self.discriminator = Discriminator().to(self.device)
 
-        # exponential moving average losses for G and D
-        self.g_ema = 0
-        self.d_ema = 0
-        self.d_ema_g_ema_diff = 0
+        self.critic_iterations = 5
+        self.lambda_gp = 10
 
         self.criterion = torch.nn.BCELoss()
         self.sample_val_images = None
@@ -58,57 +80,53 @@ class GAN(pl.LightningModule):
         batch_size = images.size(0)
         noise = torch.rand(size=(batch_size, 56, 2, 2)).to(self.device)
 
-        # Move the valid and fake tensors to the same device as the model
-        # valid = torch.ones(batch_size, 1).to(self.device)
-        # fake = torch.zeros(batch_size, 1).to(self.device)
+        """
+            -----------------------------
+            Critic (Discriminator) update
+            -----------------------------
+        """
+        for _ in range(self.critic_iterations):
+            self.opt_g.zero_grad()
+            self.opt_d.zero_grad()
 
-        # soft labels
-        # TODO: try out more or less randomness
-        valid = torch.rand((batch_size, 1), device=self.device) * 0.1 + 0.9
-        fake = torch.rand((batch_size, 1), device=self.device) * 0.1
+            imgs_fake = self.generator(images, noise).detach()
 
-        # Discriminator update
-        self.opt_g.zero_grad()
-        self.opt_d.zero_grad()
-        real_loss = self.criterion(self.discriminator(images), valid)
-        fake_loss = self.criterion(
-            self.discriminator(self.generator(images, noise)), fake
-        )
-        loss_d = (real_loss + fake_loss) / 2
-        if self.d_ema_g_ema_diff > -0.2:
-            self.manual_backward(loss_d)
+            # critic loss
+            loss_critic_real = self.discriminator(images).mean()
+            loss_critic_fake = self.discriminator(imgs_fake).mean()
+            loss_critic = loss_critic_fake - loss_critic_real
+            
+            # gradient penalty
+            gp = compute_gradient_penalty(self.discriminator, images, imgs_fake, self.device)
+            loss_critic = loss_critic + self.lambda_gp * gp
+
+            # update critic
+            self.manual_backward(loss_critic)
             self.opt_d.step()
-
-        # Update exponential moving average loss for D
-        self.d_ema = self.d_ema * 0.9 + loss_d.detach().item() * 0.1
-
-        # Generator update
+            
+        
+        """
+            ----------------
+            Generator update
+            ----------------
+        """
         self.opt_g.zero_grad()
         self.opt_d.zero_grad()
         gen_imgs = self.generator(images, noise)
 
-        # TODO: try out no soft-labels for generator (only for discriminator)
-        loss_g = self.criterion(self.discriminator(gen_imgs), valid)
-        if self.d_ema_g_ema_diff < 0.2:
-            self.manual_backward(loss_g)
-            self.opt_g.step()
+        loss_g = -self.discriminator(gen_imgs).mean()
 
-        # Update exponential moving average loss for G
-        self.g_ema = self.g_ema * 0.9 + loss_g.detach().item() * 0.1
-
-        self.d_ema_g_ema_diff = self.d_ema - (self.g_ema/2)
+        self.manual_backward(loss_g)
+        self.opt_g.step()
 
         if batch_idx % 50 == 0:
             with torch.no_grad():
                 # log losses
                 self.logger.experiment.log(
                     {
-                        "losses/d_fake": fake_loss,
-                        "losses/d_real": real_loss,
-                        "losses/d_ema-g_ema": self.d_ema_g_ema_diff,
-                        "losses/d_ema": self.d_ema,
-                        "losses/g_ema": self.g_ema,
-                        "losses/d": loss_d,
+                        "losses/d_fake": loss_critic_fake,
+                        "losses/d_real": loss_critic_real,
+                        "losses/d": loss_critic,
                         "losses/g": loss_g,
                     }
                 )
@@ -161,13 +179,19 @@ class GAN(pl.LightningModule):
 current_time = datetime.now()
 session_name = current_time.strftime("%Y-%m-%d_%H-%M-%S")
 # Weights & Biases setup for online-only logging
-wandb.init(
+# run = wandb.init(
+#     project="GAN-CIFAR10",
+#     name="Basic-GAN-train-" + session_name,
+#     settings=wandb.Settings(mode="online"),
+# )
+wandb_logger = WandbLogger(
     project="GAN-CIFAR10",
     name="Basic-GAN-train-" + session_name,
     settings=wandb.Settings(mode="online"),
+    tags=["wgan-gp", "cifar10"],
+    group="wgan-gp",
 )
 
-wandb_logger = WandbLogger()
 gpus = 1 if torch.cuda.is_available() else 0
 # start training
 logger.info("Starting training...")
