@@ -124,10 +124,10 @@ class GAN(pl.LightningModule):
                 # log losses
                 self.logger.experiment.log(
                     {
-                        "losses/d_fake": loss_critic_fake,
-                        "losses/d_real": loss_critic_real,
-                        "losses/d": loss_critic,
-                        "losses/g": loss_g,
+                        "losses/d_fake": loss_critic_fake.detach().cpu(),
+                        "losses/d_real": loss_critic_real.detach().cpu(),
+                        "losses/d": loss_critic.detach().cpu(),
+                        "losses/g": loss_g.detach().cpu(),
                     }
                 )
 
