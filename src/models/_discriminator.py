@@ -17,5 +17,5 @@ class Discriminator(nn.Module):
 
     def forward(self, x):
         x = self.base_model(x)
-        x = torch.sigmoid(x)
+        # x = torch.sigmoid(x)
         return x
