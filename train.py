@@ -61,7 +61,7 @@ class GAN(pl.LightningModule):
         self.discriminator = Discriminator().to(self.device)
 
         self.critic_iterations = 5
-        self.lambda_gp = 15
+        self.lambda_gp = 5
 
         self.criterion = torch.nn.BCELoss()
         self.sample_val_images = None
