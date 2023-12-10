@@ -159,13 +159,14 @@ class Generator(nn.Module):
 
         # feature extractor for processing input images
         self.feature_extractor = timm.create_model(
-            "efficientnet_b0",
+            # "efficientnet_b0",
             # "edgenext_xx_small",
+            "edgenext_x_small",
             pretrained=True,
             features_only=True,
             # TODO: test diffrent output indices for feature extraction
-            out_indices=[3], # efficientnet b0
-            # out_indices=[2],  # edgenext_xx_small
+            # out_indices=[3], # efficientnet b0
+            out_indices=[2],  # edgenext_xx_small
         ).to(device)
 
         # generative module
