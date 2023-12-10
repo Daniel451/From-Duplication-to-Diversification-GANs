@@ -62,6 +62,7 @@ class GAN(pl.LightningModule):
 
         self.critic_iterations = 5
         self.lambda_gp = 5
+        self.clip_gradients = False
 
         self.criterion = torch.nn.BCELoss()
         self.sample_val_images = None
@@ -86,7 +87,6 @@ class GAN(pl.LightningModule):
             -----------------------------
         """
         for _ in range(self.critic_iterations):
-            self.opt_g.zero_grad()
             self.opt_d.zero_grad()
 
             imgs_fake = self.generator(images, noise).detach()
@@ -100,8 +100,14 @@ class GAN(pl.LightningModule):
             gp = compute_gradient_penalty(self.discriminator, images, imgs_fake, self.device)
             loss_critic = loss_critic + self.lambda_gp * gp
 
-            # update critic
+            # backward pass
             self.manual_backward(loss_critic)
+
+            # optionally, add gradient clipping here
+            if self.clip_gradients:
+                torch.nn.utils.clip_grad_norm_(self.discriminator.parameters(), max_norm=1.0)
+
+            # update critic
             self.opt_d.step()
             
         
@@ -111,7 +117,6 @@ class GAN(pl.LightningModule):
             ----------------
         """
         self.opt_g.zero_grad()
-        self.opt_d.zero_grad()
         gen_imgs = self.generator(images, noise)
 
         loss_g = -self.discriminator(gen_imgs).mean()
@@ -160,11 +165,11 @@ class GAN(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer_g = torch.optim.Adam(
-            self.generator.get_generative_parameters(), lr=0.0002, betas=(0.5, 0.999)
+            self.generator.get_generative_parameters(), lr=0.00002, betas=(0.5, 0.999)
         )
         # TODO: try out different learning rates for discriminator
         optimizer_d = torch.optim.Adam(
-            self.discriminator.parameters(), lr=0.0002, betas=(0.5, 0.999)
+            self.discriminator.parameters(), lr=0.00002, betas=(0.5, 0.999)
         )
         # Get both optimizers
         self.opt_g = optimizer_g
