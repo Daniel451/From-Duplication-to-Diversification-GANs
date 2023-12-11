@@ -5,7 +5,7 @@ import wandb
 from loguru import logger
 from pytorch_lightning.loggers import WandbLogger
 from datetime import datetime
-from src.models import Generator, Generator2, Discriminator
+from src.models import Generator, Generator2, Generator3, Discriminator
 from src.data import get_single_cifar10_dataloader as get_cifar10_dataloader
 from pytorch_msssim import ssim, ms_ssim, SSIM, MS_SSIM
 
@@ -25,7 +25,8 @@ class GAN(pl.LightningModule):
         super(GAN, self).__init__()
 
         # create generator
-        self.generator = Generator(self.device).to(self.device)
+        # self.generator = Generator(self.device).to(self.device)
+        self.generator = Generator3(self.device).to(self.device)
         # generator dummy call => init lazy layers
         dummy_noise = torch.rand(size=(2, 56, 2, 2)).to(self.device)
         dummy_images = torch.rand(size=(2, 3, 32, 32)).to(self.device)
@@ -135,6 +136,7 @@ class GAN(pl.LightningModule):
                 # Log generated images
                 img_grid = torchvision.utils.make_grid(gen_imgs, normalize=True)
                 img_grid_id = torchvision.utils.make_grid(gen_images_id, normalize=True)
+                img_grid_real = torchvision.utils.make_grid(images, normalize=True)
                 self.logger.experiment.log(
                     {
                         "images/generated": [
@@ -145,21 +147,6 @@ class GAN(pl.LightningModule):
                                 img_grid_id, caption="Generated Identity Images"
                             )
                         ],
-                    }
-                )
-                # Log real images
-                img_grid_real = torchvision.utils.make_grid(images, normalize=True)
-                self.logger.experiment.log(
-                    {
-                        "images/real": [
-                            wandb.Image(img_grid_real, caption="Generated Images")
-                        ]
-                    }
-                )
-                # Log real images
-                img_grid_real = torchvision.utils.make_grid(images, normalize=True)
-                self.logger.experiment.log(
-                    {
                         "images/real": [
                             wandb.Image(img_grid_real, caption="Generated Images")
                         ]
@@ -204,7 +191,7 @@ wandb_logger = WandbLogger(
     name="Basic-GAN-train-" + session_name,
     settings=wandb.Settings(mode="online"),
     tags=["warmup", "mse-ssim", "cifar10"],
-    group="id+div",
+    group="id+div_gen3",
 )
 gpus = 1 if torch.cuda.is_available() else 0
 # start training
