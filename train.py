@@ -97,7 +97,7 @@ class GAN(pl.LightningModule):
         loss_g_id = loss_g_id_ssim + loss_g_id_mse
         loss_g = loss_g_div + loss_g_id
         if self.d_ema_g_ema_diff < 0.15:
-            if self.current_epoch > 10:
+            if self.current_epoch > 100:
                 self.manual_backward(loss_g)
             else:
                 self.manual_backward(loss_g_id)
