@@ -194,7 +194,13 @@ wandb.init(
     settings=wandb.Settings(mode="online"),
 )
 
-wandb_logger = WandbLogger()
+wandb_logger = WandbLogger(
+    project="GAN-CIFAR10",
+    name="Basic-GAN-train-" + session_name,
+    settings=wandb.Settings(mode="online"),
+    tags=["mse-ssim", "cifar10"],
+    group="id+div",
+)
 gpus = 1 if torch.cuda.is_available() else 0
 # start training
 logger.info("Starting training...")
