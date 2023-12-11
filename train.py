@@ -168,11 +168,11 @@ class GAN(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer_g = torch.optim.Adam(
-            self.generator.get_generative_parameters(), lr=0.0002, betas=(0.5, 0.999)
+            self.generator.get_generative_parameters(), lr=0.0001, betas=(0.5, 0.999)
         )
         # TODO: try out different learning rates for discriminator
         optimizer_d = torch.optim.Adam(
-            self.discriminator.parameters(), lr=0.0002, betas=(0.5, 0.999)
+            self.discriminator.parameters(), lr=0.0001, betas=(0.5, 0.999)
         )
         # Get both optimizers
         self.opt_g = optimizer_g
@@ -205,7 +205,7 @@ gpus = 1 if torch.cuda.is_available() else 0
 # start training
 logger.info("Starting training...")
 torch.set_float32_matmul_precision("medium")  # or 'high' based on your precision needs
-trainer = pl.Trainer(max_epochs=500, accelerator="gpu", devices=1, logger=wandb_logger)
+trainer = pl.Trainer(max_epochs=1000, accelerator="gpu", devices=1, logger=wandb_logger)
 gan = GAN()
 trainer.fit(gan)
 wandb.finish()
