@@ -188,11 +188,11 @@ class GAN(pl.LightningModule):
 current_time = datetime.now()
 session_name = current_time.strftime("%Y-%m-%d_%H-%M-%S")
 # Weights & Biases setup for online-only logging
-wandb.init(
-    project="GAN-CIFAR10",
-    name="Basic-GAN-train-" + session_name,
-    settings=wandb.Settings(mode="online"),
-)
+# wandb.init(
+#     project="GAN-CIFAR10",
+#     name="Basic-GAN-train-" + session_name,
+#     settings=wandb.Settings(mode="online"),
+# )
 
 wandb_logger = WandbLogger(
     project="GAN-CIFAR10",
