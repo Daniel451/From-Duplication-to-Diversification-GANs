@@ -5,7 +5,7 @@ import wandb
 from loguru import logger
 from pytorch_lightning.loggers import WandbLogger
 from datetime import datetime
-from src.models import Generator, Discriminator
+from src.models import Generator, Generator2, Discriminator
 from src.data import get_single_cifar10_dataloader as get_cifar10_dataloader
 from pytorch_msssim import ssim, ms_ssim, SSIM, MS_SSIM
 
@@ -97,7 +97,10 @@ class GAN(pl.LightningModule):
         loss_g_id = loss_g_id_ssim + loss_g_id_mse
         loss_g = loss_g_div + loss_g_id
         if self.d_ema_g_ema_diff < 0.15:
-            self.manual_backward(loss_g)
+            if self.current_epoch > 10:
+                self.manual_backward(loss_g)
+            else:
+                self.manual_backward(loss_g_id)
             self.opt_g.step()
 
         # Update exponential moving average loss for G
@@ -198,7 +201,7 @@ wandb_logger = WandbLogger(
     project="GAN-CIFAR10",
     name="Basic-GAN-train-" + session_name,
     settings=wandb.Settings(mode="online"),
-    tags=["mse-ssim", "cifar10"],
+    tags=["warmup", "mse-ssim", "cifar10"],
     group="id+div",
 )
 gpus = 1 if torch.cuda.is_available() else 0
