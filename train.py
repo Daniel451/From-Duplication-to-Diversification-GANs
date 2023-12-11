@@ -41,6 +41,7 @@ class GAN(pl.LightningModule):
         self.g_ema = 0
         self.d_ema = 0
         self.d_ema_g_ema_diff = 0
+        self.warmup = 300
 
         self.criterion = torch.nn.BCELoss()
         self.ssim = SSIM(data_range=1.0, size_average=True, channel=3)
@@ -78,8 +79,9 @@ class GAN(pl.LightningModule):
         )
         loss_d = (real_loss + fake_loss) / 2
         if self.d_ema_g_ema_diff > -0.15:
-            self.manual_backward(loss_d)
-            self.opt_d.step()
+            if self.current_epoch > (self.warmup//3):
+                self.manual_backward(loss_d)
+                self.opt_d.step()
 
         # Update exponential moving average loss for D
         self.d_ema = self.d_ema * 0.9 + loss_d.detach().item() * 0.1
@@ -97,7 +99,7 @@ class GAN(pl.LightningModule):
         loss_g_id = loss_g_id_ssim + loss_g_id_mse
         loss_g = loss_g_div + loss_g_id
         if self.d_ema_g_ema_diff < 0.15:
-            if self.current_epoch > 100:
+            if self.current_epoch > self.warmup:
                 self.manual_backward(loss_g)
             else:
                 self.manual_backward(loss_g_id)
@@ -208,7 +210,7 @@ gpus = 1 if torch.cuda.is_available() else 0
 # start training
 logger.info("Starting training...")
 torch.set_float32_matmul_precision("medium")  # or 'high' based on your precision needs
-trainer = pl.Trainer(max_epochs=1000, accelerator="gpu", devices=1, logger=wandb_logger)
+trainer = pl.Trainer(max_epochs=2000, accelerator="gpu", devices=1, logger=wandb_logger)
 gan = GAN()
 trainer.fit(gan)
 wandb.finish()
