@@ -26,7 +26,7 @@ class GAN(pl.LightningModule):
 
         # create generator
         # self.generator = Generator(self.device).to(self.device)
-        self.generator = Generator3(self.device).to(self.device)
+        self.generator = Generator(self.device).to(self.device)
         # generator dummy call => init lazy layers
         dummy_noise = torch.rand(size=(2, 56, 2, 2)).to(self.device)
         dummy_images = torch.rand(size=(2, 3, 32, 32)).to(self.device)
@@ -42,7 +42,7 @@ class GAN(pl.LightningModule):
         self.g_ema = 0
         self.d_ema = 0
         self.d_ema_g_ema_diff = 0
-        self.warmup = 300
+        # self.warmup = 300
 
         self.criterion = torch.nn.BCELoss()
         self.ssim = SSIM(data_range=1.0, size_average=True, channel=3)
@@ -72,7 +72,6 @@ class GAN(pl.LightningModule):
         fake = torch.rand((batch_size, 1), device=self.device) * 0.1
 
         # Discriminator update
-        self.opt_g.zero_grad()
         self.opt_d.zero_grad()
         real_loss = self.criterion(self.discriminator(images), valid)
         fake_loss = self.criterion(
@@ -80,34 +79,25 @@ class GAN(pl.LightningModule):
         )
         loss_d = (real_loss + fake_loss) / 2
         if self.d_ema_g_ema_diff > -0.15:
-            if self.current_epoch > (self.warmup//3):
-                self.manual_backward(loss_d)
-                self.opt_d.step()
+            self.manual_backward(loss_d)
+            self.opt_d.step()
 
         # Update exponential moving average loss for D
         self.d_ema = self.d_ema * 0.9 + loss_d.detach().item() * 0.1
 
         # Generator update
         self.opt_g.zero_grad()
-        self.opt_d.zero_grad()
-        gen_imgs = self.generator(images, noise)
+        noise = torch.rand(size=(batch_size, 56, 2, 2)).to(self.device)
+        gen_imgs = self.generator(img=images, noise=noise)
 
         # TODO: try out no soft-labels for generator (only for discriminator)
-        loss_g_div = self.criterion(self.discriminator(gen_imgs), valid)
-        gen_images_id = self.generator(images, torch.zeros_like(noise))
-        loss_g_id_ssim = 1 - self.ssim(gen_images_id, images)
-        loss_g_id_mse = torch.mean((gen_images_id - images) ** 2) * 2
-        loss_g_id = loss_g_id_ssim + loss_g_id_mse
-        loss_g = loss_g_div + loss_g_id
+        loss_g = self.criterion(self.discriminator(gen_imgs), valid)
         if self.d_ema_g_ema_diff < 0.15:
-            if self.current_epoch > self.warmup:
-                self.manual_backward(loss_g)
-            else:
-                self.manual_backward(loss_g_id)
+            self.manual_backward(loss_g)
             self.opt_g.step()
 
         # Update exponential moving average loss for G
-        self.g_ema = self.g_ema * 0.9 + loss_g_div.detach().item() * 0.1
+        self.g_ema = self.g_ema * 0.9 + loss_g.detach().item() * 0.1
 
         self.d_ema_g_ema_diff = self.d_ema - (self.g_ema / 2)
 
@@ -122,10 +112,6 @@ class GAN(pl.LightningModule):
                         "losses/d_ema": self.d_ema,
                         "losses/g_ema": self.g_ema,
                         "losses/d": loss_d,
-                        "losses/g_div": loss_g_div,
-                        "losses/g_id_ssim": loss_g_id_ssim,
-                        "losses/g_id_mse": loss_g_id_mse,
-                        "losses/g_id": loss_g_id,
                         "losses/g": loss_g,
                     }
                 )
@@ -135,17 +121,11 @@ class GAN(pl.LightningModule):
             with torch.no_grad():
                 # Log generated images
                 img_grid = torchvision.utils.make_grid(gen_imgs, normalize=True)
-                img_grid_id = torchvision.utils.make_grid(gen_images_id, normalize=True)
                 img_grid_real = torchvision.utils.make_grid(images, normalize=True)
                 self.logger.experiment.log(
                     {
                         "images/generated": [
                             wandb.Image(img_grid, caption="Generated Images")
-                        ],
-                        "images/generated_id": [
-                            wandb.Image(
-                                img_grid_id, caption="Generated Identity Images"
-                            )
                         ],
                         "images/real": [
                             wandb.Image(img_grid_real, caption="Generated Images")
@@ -190,13 +170,13 @@ wandb_logger = WandbLogger(
     project="GAN-CIFAR10",
     name="Basic-GAN-train-" + session_name,
     settings=wandb.Settings(mode="online"),
-    tags=["warmup", "mse-ssim", "cifar10"],
-    group="id+div_gen3",
+    tags=["cifar10"],
+    group="normal-gan",
 )
 gpus = 1 if torch.cuda.is_available() else 0
 # start training
 logger.info("Starting training...")
-torch.set_float32_matmul_precision("medium")  # or 'high' based on your precision needs
+torch.set_float32_matmul_precision("high")  # or 'high' based on your precision needs
 trainer = pl.Trainer(max_epochs=2000, accelerator="gpu", devices=1, logger=wandb_logger)
 gan = GAN()
 trainer.fit(gan)

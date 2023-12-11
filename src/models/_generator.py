@@ -161,15 +161,15 @@ class Generator(nn.Module):
         )
 
         # feature extractor for processing input images
-        self.feature_extractor = timm.create_model(
-            # "efficientnet_b0",
-            "edgenext_xx_small",
-            pretrained=True,
-            features_only=True,
-            # TODO: test diffrent output indices for feature extraction
-            # out_indices=[3], # efficientnet b0
-            out_indices=[2],  # edgenext_xx_small
-        ).to(device)
+        # self.feature_extractor = timm.create_model(
+        #     # "efficientnet_b0",
+        #     "edgenext_xx_small",
+        #     pretrained=True,
+        #     features_only=True,
+        #     # TODO: test diffrent output indices for feature extraction
+        #     # out_indices=[3], # efficientnet b0
+        #     out_indices=[2],  # edgenext_xx_small
+        # ).to(device)
 
         # generative module
         self.generative = nn.Sequential(
@@ -206,17 +206,17 @@ class Generator(nn.Module):
 
     def forward(self, img, noise):
         # extract features from image
-        features = self.feature_extractor(img)[0]
+        # features = self.feature_extractor(img)[0]
         # TODO: test the need of subnetwork for noise processing
 
         # merge noise with features
         # => noise and features need to have *same* dimensions if concatenated
         # => merging at dim=1 means concat at channel dim => (b, c, h, w)
         # TODO: check out adaptive instance normalization
-        merged = torch.cat((features, noise), dim=1)
+        # merged = torch.cat((features, noise), dim=1)
 
         # compute output image
-        output_img = self.generative(merged)
+        output_img = self.generative(noise)
         # sigmoid_output_img = torch.sigmoid(output_img)
         transformed_output = torch.tanh(output_img)
 
