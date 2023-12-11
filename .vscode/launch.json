@@ -5,10 +5,10 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Test Architecture",
+            "name": "Test Generator",
             "type": "python",
             "request": "launch",
-            "program": "src/test_architecture.py",
+            "program": "test_generator.py",
             "console": "integratedTerminal",
             "justMyCode": true
         },
@@ -19,6 +19,6 @@
             "program": "train.py",
             "console": "integratedTerminal",
             "justMyCode": true
-        }
+        },
     ]
 }

@@ -108,12 +108,12 @@ class StackedDecodingModule(nn.Module):
 
         self.decode1 = DecodingModule(
             in_channels=in_channels,
-            out_channels=int(in_channels/2),
+            out_channels=int(in_channels / 2),
             norm_layer=norm_layer,
             activation_function=activation_function,
         )
         self.decode2 = DecodingModule(
-            in_channels=int(in_channels/2),
+            in_channels=int(in_channels / 2),
             out_channels=out_channels,
             norm_layer=norm_layer,
             activation_function=activation_function,
@@ -129,9 +129,9 @@ class StackedDecodingModule(nn.Module):
         out1 = self.decode1(x)
         out2 = self.decode2(out1)
         transformed_input = self.shortcut(x)
-        
-        residual = (transformed_input + out2)/2
-        
+
+        residual = (transformed_input + out2) / 2
+
         return residual
 
 
@@ -175,23 +175,18 @@ class Generator(nn.Module):
             # *LAZY* conv2d layer which automatically calculates number of in_channels
             # from merged and outputs the specified channel
             nn.LazyConv2d(out_channels=128, kernel_size=1, padding=0),
-
             # 2x2
             CustomStackedDecodeModule(in_channels=128, out_channels=64),
             nn.UpsamplingBilinear2d(scale_factor=2),
-
             # 4x4
             CustomStackedDecodeModule(in_channels=64, out_channels=32),
             nn.UpsamplingBilinear2d(scale_factor=2),
-
             # 8x8
             CustomStackedDecodeModule(in_channels=32, out_channels=16),
             nn.UpsamplingBilinear2d(scale_factor=2),
-
             # 16x16
             CustomStackedDecodeModule(in_channels=16, out_channels=16),
             nn.UpsamplingBilinear2d(scale_factor=2),
-
             # 32x32
             CustomStackedDecodeModule(in_channels=16, out_channels=8),
             nn.Conv2d(

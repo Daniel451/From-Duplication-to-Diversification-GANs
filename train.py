@@ -6,7 +6,8 @@ from loguru import logger
 from pytorch_lightning.loggers import WandbLogger
 from datetime import datetime
 from src.models import Generator, Discriminator
-from src.data import get_cifar10_dataloader
+from src.data import get_single_cifar10_dataloader as get_cifar10_dataloader
+from pytorch_msssim import ssim, ms_ssim, SSIM, MS_SSIM
 
 
 # TODO: try different weight init methods
@@ -42,6 +43,7 @@ class GAN(pl.LightningModule):
         self.d_ema_g_ema_diff = 0
 
         self.criterion = torch.nn.BCELoss()
+        self.ssim = SSIM(data_range=1.0, size_average=True, channel=3)
         self.sample_val_images = None
 
         self.automatic_optimization = False
@@ -75,7 +77,7 @@ class GAN(pl.LightningModule):
             self.discriminator(self.generator(images, noise)), fake
         )
         loss_d = (real_loss + fake_loss) / 2
-        if self.d_ema_g_ema_diff > -0.2:
+        if self.d_ema_g_ema_diff > -0.15:
             self.manual_backward(loss_d)
             self.opt_d.step()
 
@@ -88,15 +90,20 @@ class GAN(pl.LightningModule):
         gen_imgs = self.generator(images, noise)
 
         # TODO: try out no soft-labels for generator (only for discriminator)
-        loss_g = self.criterion(self.discriminator(gen_imgs), valid)
-        if self.d_ema_g_ema_diff < 0.2:
+        loss_g_div = self.criterion(self.discriminator(gen_imgs), valid)
+        gen_images_id = self.generator(images, torch.zeros_like(noise))
+        loss_g_id_ssim = 1 - self.ssim(gen_images_id, images)
+        loss_g_id_mse = torch.mean((gen_images_id - images) ** 2) * 2
+        loss_g_id = loss_g_id_ssim + loss_g_id_mse
+        loss_g = loss_g_div + loss_g_id
+        if self.d_ema_g_ema_diff < 0.15:
             self.manual_backward(loss_g)
             self.opt_g.step()
 
         # Update exponential moving average loss for G
-        self.g_ema = self.g_ema * 0.9 + loss_g.detach().item() * 0.1
+        self.g_ema = self.g_ema * 0.9 + loss_g_div.detach().item() * 0.1
 
-        self.d_ema_g_ema_diff = self.d_ema - (self.g_ema/2)
+        self.d_ema_g_ema_diff = self.d_ema - (self.g_ema / 2)
 
         if batch_idx % 50 == 0:
             with torch.no_grad():
@@ -109,6 +116,10 @@ class GAN(pl.LightningModule):
                         "losses/d_ema": self.d_ema,
                         "losses/g_ema": self.g_ema,
                         "losses/d": loss_d,
+                        "losses/g_div": loss_g_div,
+                        "losses/g_id_ssim": loss_g_id_ssim,
+                        "losses/g_id_mse": loss_g_id_mse,
+                        "losses/g_id": loss_g_id,
                         "losses/g": loss_g,
                     }
                 )
@@ -118,10 +129,25 @@ class GAN(pl.LightningModule):
             with torch.no_grad():
                 # Log generated images
                 img_grid = torchvision.utils.make_grid(gen_imgs, normalize=True)
+                img_grid_id = torchvision.utils.make_grid(gen_images_id, normalize=True)
                 self.logger.experiment.log(
                     {
                         "images/generated": [
                             wandb.Image(img_grid, caption="Generated Images")
+                        ],
+                        "images/generated_id": [
+                            wandb.Image(
+                                img_grid_id, caption="Generated Identity Images"
+                            )
+                        ],
+                    }
+                )
+                # Log real images
+                img_grid_real = torchvision.utils.make_grid(images, normalize=True)
+                self.logger.experiment.log(
+                    {
+                        "images/real": [
+                            wandb.Image(img_grid_real, caption="Generated Images")
                         ]
                     }
                 )
@@ -155,7 +181,8 @@ class GAN(pl.LightningModule):
 
     def train_dataloader(self):
         logger.info("Loading training data...")
-        return get_cifar10_dataloader(batch_size=128, num_workers=8)[0]
+        # return get_cifar10_dataloader(batch_size=128, num_workers=8)[0]
+        return get_cifar10_dataloader(target_class=4, batch_size=128, num_workers=8)[0]
 
 
 current_time = datetime.now()
@@ -172,7 +199,7 @@ gpus = 1 if torch.cuda.is_available() else 0
 # start training
 logger.info("Starting training...")
 torch.set_float32_matmul_precision("medium")  # or 'high' based on your precision needs
-trainer = pl.Trainer(max_epochs=100, accelerator="gpu", devices=1, logger=wandb_logger)
+trainer = pl.Trainer(max_epochs=500, accelerator="gpu", devices=1, logger=wandb_logger)
 gan = GAN()
 trainer.fit(gan)
 wandb.finish()

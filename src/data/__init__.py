@@ -1,1 +1,2 @@
-from .data_loader import get_cifar10_dataloader
+from .single_data_loader import get_single_cifar10_dataloader
+from .full_data_loader import get_cifar10_dataloader
