@@ -20,5 +20,13 @@
             "console": "integratedTerminal",
             "justMyCode": true
         },
+        {
+            "name": "Debug Train Transformer",
+            "type": "python",
+            "request": "launch",
+            "program": "train_transformer.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
     ]
 }
