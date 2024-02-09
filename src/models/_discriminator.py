@@ -11,7 +11,8 @@ class Discriminator(nn.Module):
         self.base_model = timm.create_model(
             # "efficientnet_b0", pretrained=False, num_classes=1
             # "efficientnet_b1", pretrained=False, num_classes=1
-            "edgenext_xx_small", pretrained=False, num_classes=1
+            # "edgenext_xx_small", pretrained=False, num_classes=1
+            "edgenext_x_small", pretrained=False, num_classes=1
             # "eca_nfnet_l0", pretrained=False, num_classes=1
         )
 
