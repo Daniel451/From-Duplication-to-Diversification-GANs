@@ -66,29 +66,46 @@ class TransformerGenerator(nn.Module):
             embed_size, image_size
         )
 
-        self.transform = nn.Conv2d(3, 96, kernel_size=1, stride=1, padding="same")
+        self.transform1 = nn.Conv2d(3, 96, kernel_size=1, stride=1, padding="same")
+        self.mod1a = MultiConvModule(96, 48)
+        self.mod1b = MultiConvModule(48, 24)
+        self.mod1c = MultiConvModule(24, 3)
 
-        self.mod1 = MultiConvModule(96, 192)
-        self.mod2 = MultiConvModule(192, 384)
-        self.mod3 = MultiConvModule(384, 192)
-        self.mod4 = MultiConvModule(192, 96)
-        self.mod5 = MultiConvModule(96, 48)
+        self.transform2 = nn.Conv2d(3, 96, kernel_size=1, stride=1, padding="same")
+        self.mod2a = MultiConvModule(96, 48)
+        self.mod2b = MultiConvModule(48, 24)
+        self.mod2c = MultiConvModule(24, 3)
+
+        self.transform3 = nn.Conv2d(3, 96, kernel_size=1, stride=1, padding="same")
+        self.mod3a = MultiConvModule(96, 48)
+        self.mod3b = MultiConvModule(48, 24)
+        self.mod3c = MultiConvModule(24, 3)
         
-        self.final = nn.Conv2d(48, 3, kernel_size=3, stride=1, padding="same")
+        self.final = nn.Conv2d(3, 3, kernel_size=3, stride=1, padding="same")
 
     def forward(self, x):
         x = self.conv_transformer_autoencoder(x)
         transformer_output = x
 
-        x = self.transform(x)
-        x = self.mod1(x)
-        x = self.mod2(x)
-        x = self.mod3(x)
-        x = self.mod4(x)
-        x = self.mod5(x)
+        x = self.transform1(x)
+        x = self.mod1a(x)
+        x = self.mod1b(x)
+        x = self.mod1c(x)
+        mod1_out = transformer_output + x
+
+        x = self.transform2(mod1_out)
+        x = self.mod2a(x)
+        x = self.mod2b(x)
+        x = self.mod2c(x)
+        mod2_out = mod1_out + x
+
+        x = self.transform3(mod2_out)
+        x = self.mod3a(x)
+        x = self.mod3b(x)
+        x = self.mod3c(x)
+        mod3_out = mod2_out + x
         
-        x = self.final(x)
-        x = transformer_output + x
+        x = self.final(mod3_out)
         x = torch.tanh(x)
 
         return x
