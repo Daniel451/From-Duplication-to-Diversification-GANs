@@ -66,9 +66,28 @@ class TransformerGenerator(nn.Module):
             embed_size, image_size
         )
 
+        self.mod1 = MultiConvModule(3, 64)
+        self.mod2 = MultiConvModule(64, 128)
+        self.mod3 = MultiConvModule(128, 64)
+        self.mod4 = MultiConvModule(64, 32)
+        self.mod5 = MultiConvModule(32, 16)
+        
+        self.final = nn.Conv2d(16, 3, kernel_size=3, stride=1, padding="same")
+
     def forward(self, x):
         x = self.conv_transformer_autoencoder(x)
+        transformer_output = x
+
+        x = self.mod1(x)
+        x = self.mod2(x)
+        x = self.mod3(x)
+        x = self.mod4(x)
+        x = self.mod5(x)
+        
+        x = self.final(x)
+        x = transformer_output + x
         x = torch.tanh(x)
+
         return x
 
 
@@ -88,3 +107,78 @@ class TransformerDiscriminator(nn.Module):
         x = torch.sigmoid(x)
         x = x.view(-1, 1)
         return x
+
+
+class MultiConvModule(nn.Module):
+    
+    def __init__(self, input_channels, output_channels) -> None:
+        super().__init__()
+
+        # 1x1 input processing
+        self.conv_input = nn.Conv2d(input_channels, input_channels//6, kernel_size=1, stride=1, padding="same")
+        self.bn_input = nn.BatchNorm2d(input_channels//6)
+
+        # 7x7, 5x5, 3x3, 1x1, maxpool, avgpool
+        self.conv7x7 = nn.Conv2d(input_channels//6, input_channels//6, kernel_size=7, stride=1, padding="same")
+        self.bn7x7 = nn.BatchNorm2d(input_channels//6)
+
+        self.conv5x5 = nn.Conv2d(input_channels//6, input_channels//6, kernel_size=5, stride=1, padding="same")
+        self.bn5x5 = nn.BatchNorm2d(input_channels//6)
+        
+        self.conv3x3 = nn.Conv2d(input_channels//6, input_channels//6, kernel_size=3, stride=1, padding="same")
+        self.bn3x3 = nn.BatchNorm2d(input_channels//6)
+        
+        self.conv1x1 = nn.Conv2d(input_channels//6, input_channels//6, kernel_size=1, stride=1, padding="same")
+        self.bn1x1 = nn.BatchNorm2d(input_channels//6)
+        
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=1, padding="same")
+        self.bn_maxpool = nn.BatchNorm2d(input_channels//6)
+
+        self.avgpool = nn.AvgPool2d(kernel_size=3, stride=1, padding="same")
+        self.bn_avgpool = nn.BatchNorm2d(input_channels//6)
+
+        # 1x1 output processing
+        self.conv_output = nn.Conv2d(input_channels, output_channels, kernel_size=1, stride=1, padding="same")
+        self.bn_output = nn.BatchNorm2d(output_channels)
+
+
+    def forward(self, x):
+        # input processing
+        x_input = self.conv_input(x)
+        x_input = self.bn_input(x_input)
+        x_input = F.softsign(x_input)
+
+        # modules
+        part1 = self.conv7x7(x_input)
+        part1 = self.bn7x7(part1)
+        part1 = F.softsign(part1)
+
+        part2 = self.conv5x5(x_input)
+        part2 = self.bn5x5(part2)
+        part2 = F.softsign(part2)
+        
+        part3 = self.conv3x3(x_input)
+        part3 = self.bn3x3(part3)
+        part3 = F.softsign(part3)
+        
+        part4 = self.conv1x1(x_input)
+        part4 = self.bn1x1(part4)
+        part4 = F.softsign(part4)
+        
+        part5 = self.maxpool(x_input)
+        part5 = self.bn_maxpool(part5)
+        part5 = F.softsign(part5)
+        
+        part6 = self.avgpool(x_input)
+        part6 = self.bn_avgpool(part6)
+        part6 = F.softsign(part6)
+
+        # output processing
+        x_output = torch.cat([part1, part2, part3, part4, part5, part6], dim=1)
+        x_output = self.conv_output(x_output + x)
+        x_output = self.bn_output(x_output)
+        x_output = F.softsign(x_output)
+
+        return x_output
+        
+
