@@ -6,7 +6,7 @@ from loguru import logger
 from pytorch_lightning.loggers import WandbLogger
 from datetime import datetime
 from src.models import Discriminator
-from src.models.model_transformer import TransformerGenerator
+from src.models.model_transformer import TransformerGenerator, TransformerDiscriminator
 from src.data import get_single_cifar10_dataloader as get_cifar10_dataloader
 from pytorch_msssim import ssim, ms_ssim, SSIM, MS_SSIM
 
@@ -37,7 +37,8 @@ class GAN(pl.LightningModule):
             layer.apply(init_weights)
 
         # create discriminator
-        self.discriminator = Discriminator().to(self.device)
+        # self.discriminator = Discriminator().to(self.device)
+        self.discriminator = TransformerDiscriminator().to(self.device)
 
         # exponential moving average losses for G and D
         self.g_ema = 0
@@ -141,11 +142,11 @@ class GAN(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer_g = torch.optim.Adam(
-            self.generator.parameters(), lr=0.001, betas=(0.5, 0.999)
+            self.generator.parameters(), lr=0.00001, betas=(0.5, 0.999)
         )
         # TODO: try out different learning rates for discriminator
         optimizer_d = torch.optim.Adam(
-            self.discriminator.parameters(), lr=0.001, betas=(0.5, 0.999)
+            self.discriminator.parameters(), lr=0.00001, betas=(0.5, 0.999)
         )
         # Get both optimizers
         self.opt_g = optimizer_g
