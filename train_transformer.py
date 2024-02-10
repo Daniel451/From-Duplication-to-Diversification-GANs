@@ -103,7 +103,7 @@ class GAN(pl.LightningModule):
 
         self.d_ema_g_ema_diff = self.d_ema - (self.g_ema / 2)
 
-        if batch_idx % 50 == 0:
+        if batch_idx % 500 == 0:
             with torch.no_grad():
                 # log losses
                 self.logger.experiment.log(
@@ -179,7 +179,7 @@ gpus = 1 if torch.cuda.is_available() else 0
 # start training
 logger.info("Starting training...")
 torch.set_float32_matmul_precision("high")  # or 'high' based on your precision needs
-trainer = pl.Trainer(max_epochs=5000, accelerator="gpu", devices=1, logger=wandb_logger)
+trainer = pl.Trainer(max_epochs=50000, accelerator="gpu", devices=1, logger=wandb_logger)
 gan = GAN()
 trainer.fit(gan)
 wandb.finish()
