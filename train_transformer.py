@@ -119,7 +119,7 @@ class GAN(pl.LightningModule):
                 )
 
         # Log generated images
-        if batch_idx % 250 == 0:
+        if batch_idx % 2000 == 0:
             with torch.no_grad():
                 # Log generated images
                 img_grid = torchvision.utils.make_grid(gen_imgs, normalize=True)
@@ -142,11 +142,11 @@ class GAN(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer_g = torch.optim.Adam(
-            self.generator.parameters(), lr=0.00001, betas=(0.5, 0.999)
+            self.generator.parameters(), lr=0.0001, betas=(0.5, 0.999)
         )
         # TODO: try out different learning rates for discriminator
         optimizer_d = torch.optim.Adam(
-            self.discriminator.parameters(), lr=0.00001, betas=(0.5, 0.999)
+            self.discriminator.parameters(), lr=0.0001, betas=(0.5, 0.999)
         )
         # Get both optimizers
         self.opt_g = optimizer_g
