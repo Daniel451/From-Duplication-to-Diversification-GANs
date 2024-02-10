@@ -66,18 +66,21 @@ class TransformerGenerator(nn.Module):
             embed_size, image_size
         )
 
-        self.mod1 = MultiConvModule(3, 64)
-        self.mod2 = MultiConvModule(64, 128)
-        self.mod3 = MultiConvModule(128, 64)
-        self.mod4 = MultiConvModule(64, 32)
-        self.mod5 = MultiConvModule(32, 16)
+        self.transform = nn.Conv2d(3, 96, kernel_size=1, stride=1, padding="same")
+
+        self.mod1 = MultiConvModule(96, 192)
+        self.mod2 = MultiConvModule(192, 384)
+        self.mod3 = MultiConvModule(384, 192)
+        self.mod4 = MultiConvModule(192, 96)
+        self.mod5 = MultiConvModule(96, 48)
         
-        self.final = nn.Conv2d(16, 3, kernel_size=3, stride=1, padding="same")
+        self.final = nn.Conv2d(48, 3, kernel_size=3, stride=1, padding="same")
 
     def forward(self, x):
         x = self.conv_transformer_autoencoder(x)
         transformer_output = x
 
+        x = self.transform(x)
         x = self.mod1(x)
         x = self.mod2(x)
         x = self.mod3(x)
@@ -131,10 +134,10 @@ class MultiConvModule(nn.Module):
         self.conv1x1 = nn.Conv2d(input_channels//6, input_channels//6, kernel_size=1, stride=1, padding="same")
         self.bn1x1 = nn.BatchNorm2d(input_channels//6)
         
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=1, padding="same")
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=1, padding=1)
         self.bn_maxpool = nn.BatchNorm2d(input_channels//6)
 
-        self.avgpool = nn.AvgPool2d(kernel_size=3, stride=1, padding="same")
+        self.avgpool = nn.AvgPool2d(kernel_size=3, stride=1, padding=1)
         self.bn_avgpool = nn.BatchNorm2d(input_channels//6)
 
         # 1x1 output processing
