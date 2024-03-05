@@ -7,8 +7,7 @@ def main():
     # Test Generator
     G = Generator("cpu")
     dummy_img = torch.rand(size=(2, 3, 32, 32))
-
-    dummy_noise = torch.rand(size=(2, 56, 8, 8))
+    dummy_noise = torch.rand(size=(2, 56, 2, 2))
     gen_output = G(dummy_img, dummy_noise)
 
     print("Generator output shape:", gen_output.shape)

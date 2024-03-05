@@ -8,6 +8,29 @@ from datetime import datetime
 from src.models import Generator, Generator2, Generator3, Discriminator
 from src.data import get_single_cifar10_dataloader as get_cifar10_dataloader
 from pytorch_msssim import ssim, ms_ssim, SSIM, MS_SSIM
+from pytorch_lightning.callbacks import ModelCheckpoint
+from pathlib import Path
+import random
+import numpy as np
+import os
+import typer
+
+app = typer.Typer()
+
+
+# Function to set random seeds
+def set_random_seeds(seed_value=42):
+    random.seed(seed_value)  # Python random module
+    np.random.seed(seed_value)  # Numpy module
+    torch.manual_seed(seed_value)  # PyTorch
+    torch.cuda.manual_seed_all(seed_value)  # for multi-GPU
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    os.environ["PYTHONHASHSEED"] = str(seed_value)
+
+
+# Set random seeds for reproducibility
+set_random_seeds(seed_value=42)
 
 
 # TODO: try different weight init methods
@@ -45,6 +68,7 @@ class GAN(pl.LightningModule):
         self.warmup = 300
 
         self.criterion = torch.nn.BCELoss()
+        # self.criterion = torch.nn.MSELoss()
         self.ssim = SSIM(data_range=1.0, size_average=True, channel=3)
         self.sample_val_images = None
 
@@ -61,10 +85,6 @@ class GAN(pl.LightningModule):
         images = images.to(self.device)
         batch_size = images.size(0)
         noise = torch.rand(size=(batch_size, 56, 2, 2)).to(self.device)
-
-        # Move the valid and fake tensors to the same device as the model
-        # valid = torch.ones(batch_size, 1).to(self.device)
-        # fake = torch.zeros(batch_size, 1).to(self.device)
 
         # soft labels
         # TODO: try out more or less randomness
@@ -177,28 +197,60 @@ class GAN(pl.LightningModule):
         return get_cifar10_dataloader(target_class=4, batch_size=128, num_workers=8)[0]
 
 
-current_time = datetime.now()
-session_name = current_time.strftime("%Y-%m-%d_%H-%M-%S")
-# Weights & Biases setup for online-only logging
-# wandb.init(
-#     project="GAN-CIFAR10",
-#     name="Basic-GAN-train-" + session_name,
-#     settings=wandb.Settings(mode="online"),
-# )
+@app.command()
+def train(max_epochs: int = 200, wandb_run_name: str = "GAN-EMA-SSIM015-epoch500"):
+    current_time = datetime.now()
+    session_name = current_time.strftime("%Y-%m-%d_%H-%M-%S")
+    full_wandb_run_name = f"{wandb_run_name}-{session_name}"
 
-wandb_logger = WandbLogger(
-    project="GAN-CIFAR10",
-    name="Basic-GAN-train-" + session_name,
-    settings=wandb.Settings(mode="online"),
-    tags=["warmup", "mse-ssim", "cifar10"],
-    group="id+div_gen3",
-)
-gpus = 1 if torch.cuda.is_available() else 0
-# start training
-logger.info("Starting training...")
-torch.set_float32_matmul_precision("medium")  # or 'high' based on your precision needs
-trainer = pl.Trainer(max_epochs=2000, accelerator="gpu", devices=1, logger=wandb_logger)
-gan = GAN()
-trainer.fit(gan)
-wandb.finish()
-logger.info("Finished training!")
+    # Weights & Biases setup for online-only logging
+    wandb.init(
+        project="GAN-CIFAR10",
+        name=full_wandb_run_name,
+        settings=wandb.Settings(mode="online"),
+    )
+
+    wandb_logger = WandbLogger()
+    checkpoint_dir = Path("./model_checkpoints/")
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint_callback = ModelCheckpoint(
+        dirpath=str(checkpoint_dir),  # Ensure the path is correctly passed as a string
+        filename="customGAN-EMA-SSIM015-{epoch:02d}",
+        save_top_k=-1,
+        every_n_epochs=25,
+        verbose=True,
+    )
+
+    # Check for GPU availability
+    gpus = 1 if torch.cuda.is_available() else 0
+
+    logger.info("Starting training...")
+
+    # Set torch's float32 matmul precision if needed
+    torch.set_float32_matmul_precision(
+        "high"
+    )  # or 'high' based on your precision needs
+
+    # Initialize the Trainer with the provided max_epochs
+    trainer = pl.Trainer(
+        max_epochs=max_epochs,
+        accelerator="gpu",
+        callbacks=[checkpoint_callback],
+        devices=gpus,
+        logger=wandb_logger,
+    )
+
+    # Initialize your GAN model
+    gan = GAN()
+
+    # Start the training process
+    trainer.fit(gan)
+
+    # Finish the wandb run
+    wandb.finish()
+
+    logger.info("Finished training!")
+
+
+if __name__ == "__main__":
+    app()

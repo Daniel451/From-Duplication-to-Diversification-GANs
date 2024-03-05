@@ -4,11 +4,21 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+
+
         {
             "name": "Test Generator",
             "type": "python",
             "request": "launch",
             "program": "test_generator.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Test dcGenerator",
+            "type": "python",
+            "request": "launch",
+            "program": "test_dcgenerator.py",
             "console": "integratedTerminal",
             "justMyCode": true
         },
@@ -20,5 +30,13 @@
             "console": "integratedTerminal",
             "justMyCode": true
         },
+        {
+            "name": "Debug dcgan_train",
+            "type": "python",
+            "request": "launch",
+            "program": "train_dcgan.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
     ]
 }

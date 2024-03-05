@@ -41,6 +41,5 @@ def get_cifar10_dataloader(batch_size=64, num_workers=2, download_path="./data")
         num_workers=num_workers,
         drop_last=True,
     )
-    cifar_dim = train_dataset.train_data.size(1) * train_dataset.train_data.size(2)
 
-    return train_loader, test_loader, cifar_dim
+    return train_loader, test_loader
