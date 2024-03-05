@@ -6,7 +6,7 @@ from loguru import logger
 from pytorch_lightning.loggers import WandbLogger
 from datetime import datetime
 from src.models import Discriminator
-from src.models.model_transformer import TransformerGenerator, TransformerDiscriminator
+from src.models.model_transformer import TransformerGenerator, TransformerDiscriminator, TransformerGeneratorAllTrans
 from src.data import get_single_cifar10_dataloader as get_cifar10_dataloader
 from pytorch_msssim import ssim, ms_ssim, SSIM, MS_SSIM
 
@@ -27,7 +27,7 @@ class GAN(pl.LightningModule):
 
         # create generator
         # self.generator = Generator(self.device).to(self.device)
-        self.generator = TransformerGenerator().to(self.device)
+        self.generator = TransformerGeneratorAllTrans().to(self.device)
         # generator dummy call => init lazy layers
         dummy_noise = torch.rand(size=(2, 3, 32, 32)).to(self.device)
         # dummy_images = torch.rand(size=(2, 3, 32, 32)).to(self.device)

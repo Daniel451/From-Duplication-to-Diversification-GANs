@@ -58,6 +58,26 @@ class ConvTransformerAutoencoder(nn.Module):
         x = self.decoder(memory, memory)
         return x
 
+        
+class TransformerGeneratorAllTrans(nn.Module):
+    def __init__(self, embed_size=56, image_size=32):
+        super().__init__()
+        self.conv_transformer_autoencoder1 = ConvTransformerAutoencoder(
+            embed_size, image_size
+        )
+        self.conv_transformer_autoencoder2 = ConvTransformerAutoencoder(
+            embed_size, image_size
+        )
+        self.conv_transformer_autoencoder3 = ConvTransformerAutoencoder(
+            embed_size, image_size
+        )
+
+    def forward(self, x):
+        x1 = self.conv_transformer_autoencoder1(x)
+        x2 = x1 + self.conv_transformer_autoencoder2(x1)
+        x3 = x2 + self.conv_transformer_autoencoder3(x2)
+        return x3
+
 
 class TransformerGenerator(nn.Module):
     def __init__(self, embed_size=256, image_size=32):
