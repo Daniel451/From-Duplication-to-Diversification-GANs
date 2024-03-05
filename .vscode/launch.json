@@ -37,6 +37,14 @@
             "program": "train_dcgan.py",
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "Debug vanilla train",
+            "type": "python",
+            "request": "launch",
+            "program": "vanilla_gan_train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
         }
     ]
 }

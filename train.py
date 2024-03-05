@@ -5,7 +5,7 @@ import wandb
 from loguru import logger
 from pytorch_lightning.loggers import WandbLogger
 from datetime import datetime
-from src.models import Generator, Generator2, Generator3, Discriminator
+from src.models import Generator, Discriminator
 from src.data import get_single_cifar10_dataloader as get_cifar10_dataloader
 from pytorch_msssim import ssim, ms_ssim, SSIM, MS_SSIM
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -48,8 +48,7 @@ class GAN(pl.LightningModule):
         super(GAN, self).__init__()
 
         # create generator
-        # self.generator = Generator(self.device).to(self.device)
-        self.generator = Generator3(self.device).to(self.device)
+        self.generator = Generator(self.device).to(self.device)
         # generator dummy call => init lazy layers
         dummy_noise = torch.rand(size=(2, 56, 2, 2)).to(self.device)
         dummy_images = torch.rand(size=(2, 3, 32, 32)).to(self.device)
@@ -65,7 +64,6 @@ class GAN(pl.LightningModule):
         self.g_ema = 0
         self.d_ema = 0
         self.d_ema_g_ema_diff = 0
-        self.warmup = 300
 
         self.criterion = torch.nn.BCELoss()
         # self.criterion = torch.nn.MSELoss()
@@ -100,9 +98,8 @@ class GAN(pl.LightningModule):
         )
         loss_d = (real_loss + fake_loss) / 2
         if self.d_ema_g_ema_diff > -0.15:
-            if self.current_epoch > (self.warmup//3):
-                self.manual_backward(loss_d)
-                self.opt_d.step()
+            self.manual_backward(loss_d)
+            self.opt_d.step()
 
         # Update exponential moving average loss for D
         self.d_ema = self.d_ema * 0.9 + loss_d.detach().item() * 0.1
@@ -120,10 +117,7 @@ class GAN(pl.LightningModule):
         loss_g_id = loss_g_id_ssim + loss_g_id_mse
         loss_g = loss_g_div + loss_g_id
         if self.d_ema_g_ema_diff < 0.15:
-            if self.current_epoch > self.warmup:
-                self.manual_backward(loss_g)
-            else:
-                self.manual_backward(loss_g_id)
+            self.manual_backward(loss_g)
             self.opt_g.step()
 
         # Update exponential moving average loss for G
@@ -156,7 +150,6 @@ class GAN(pl.LightningModule):
                 # Log generated images
                 img_grid = torchvision.utils.make_grid(gen_imgs, normalize=True)
                 img_grid_id = torchvision.utils.make_grid(gen_images_id, normalize=True)
-                img_grid_real = torchvision.utils.make_grid(images, normalize=True)
                 self.logger.experiment.log(
                     {
                         "images/generated": [
@@ -167,6 +160,12 @@ class GAN(pl.LightningModule):
                                 img_grid_id, caption="Generated Identity Images"
                             )
                         ],
+                    }
+                )
+                # Log real images
+                img_grid_real = torchvision.utils.make_grid(images, normalize=True)
+                self.logger.experiment.log(
+                    {
                         "images/real": [
                             wandb.Image(img_grid_real, caption="Generated Images")
                         ]
@@ -180,11 +179,11 @@ class GAN(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer_g = torch.optim.Adam(
-            self.generator.get_generative_parameters(), lr=0.0001, betas=(0.5, 0.999)
+            self.generator.get_generative_parameters(), lr=0.0002, betas=(0.5, 0.999)
         )
         # TODO: try out different learning rates for discriminator
         optimizer_d = torch.optim.Adam(
-            self.discriminator.parameters(), lr=0.0001, betas=(0.5, 0.999)
+            self.discriminator.parameters(), lr=0.0002, betas=(0.5, 0.999)
         )
         # Get both optimizers
         self.opt_g = optimizer_g
@@ -193,7 +192,6 @@ class GAN(pl.LightningModule):
 
     def train_dataloader(self):
         logger.info("Loading training data...")
-        # return get_cifar10_dataloader(batch_size=128, num_workers=8)[0]
         return get_cifar10_dataloader(target_class=4, batch_size=128, num_workers=8)[0]
 
 
