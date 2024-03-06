@@ -178,11 +178,11 @@ class GAN(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer_g = torch.optim.Adam(
-            self.generator.get_generative_parameters(), lr=0.0002, betas=(0.5, 0.999)
+            self.generator.get_generative_parameters(), lr=0.0001, betas=(0.5, 0.999)
         )
         # TODO: try out different learning rates for discriminator
         optimizer_d = torch.optim.Adam(
-            self.discriminator.parameters(), lr=0.0002, betas=(0.5, 0.999)
+            self.discriminator.parameters(), lr=0.0001, betas=(0.5, 0.999)
         )
         # Get both optimizers
         self.opt_g = optimizer_g

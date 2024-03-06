@@ -36,10 +36,10 @@ class DiscriminatorCustom(nn.Module):
             StackedDecodingModule(64, 128, norm_layer=nn.BatchNorm2d),
             StackedDecodingModule(128, 256, norm_layer=nn.BatchNorm2d),
             nn.MaxPool2d(kernel_size=2, stride=2),  # 8x8
-            StackedDecodingModule(256, 512, norm_layer=nn.BatchNorm2d),
-            StackedDecodingModule(512, 256, norm_layer=nn.BatchNorm2d),
+            StackedDecodingModule(256, 256, norm_layer=nn.BatchNorm2d),
+            StackedDecodingModule(256, 128, norm_layer=nn.BatchNorm2d),
             nn.Flatten(),
-            nn.Linear(256 * 8 * 8, 1),
+            nn.Linear(128 * 8 * 8, 1),
         )
 
     def forward(self, x):
