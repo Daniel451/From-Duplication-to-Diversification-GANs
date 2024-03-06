@@ -148,7 +148,7 @@ class GAN(pl.LightningModule):
                 )
 
         # Log generated images
-        if batch_idx % 250 == 0:
+        if self.trainer.is_last_batch:
             with torch.no_grad():
                 # Log generated images
                 img_grid = torchvision.utils.make_grid(gen_imgs, normalize=True)
@@ -167,7 +167,7 @@ class GAN(pl.LightningModule):
                         ],
                         "images/real": [
                             wandb.Image(img_grid_real, caption="Generated Images")
-                        ]
+                        ],
                     }
                 )
 
@@ -175,7 +175,7 @@ class GAN(pl.LightningModule):
             "loss": loss_g,
             "log": {"loss_generator": loss_g},
         }
-
+    
     def configure_optimizers(self):
         optimizer_g = torch.optim.Adam(
             self.generator.get_generative_parameters(), lr=0.0001, betas=(0.5, 0.999)
@@ -193,9 +193,21 @@ class GAN(pl.LightningModule):
         logger.info("Loading training data...")
         return get_cifar10_dataloader(target_class=4, batch_size=128, num_workers=8)[0]
 
+    def on_train_start(self) -> None:
+        self.custom_experiment_id = self.trainer.logger.experiment.id
+        # Define the directory path for model checkpoints
+        self.checkpoint_dir = Path("./model_checkpoints/gan-ema/", self.custom_experiment_id)
+        # Create the directory if it does not exist
+        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+    def on_train_epoch_end(self) -> None:
+        if self.trainer.current_epoch % 25 == 0:
+            # save PyTorch
+            torch.save(self.generator.state_dict(), Path(self.checkpoint_dir, f"generator_{self.trainer.current_epoch}.pt").as_posix())
+
 
 @app.command()
-def train(max_epochs: int = 200, wandb_run_name: str = "GAN-EMA-SSIM015-epoch500"):
+def train(max_epochs: int = 500, wandb_run_name: str = "GAN-EMA-SSIM015-epoch500"):
     current_time = datetime.now()
     session_name = current_time.strftime("%Y-%m-%d_%H-%M-%S")
     full_wandb_run_name = f"{wandb_run_name}-{session_name}"
@@ -208,15 +220,6 @@ def train(max_epochs: int = 200, wandb_run_name: str = "GAN-EMA-SSIM015-epoch500
     )
 
     wandb_logger = WandbLogger()
-    checkpoint_dir = Path("./model_checkpoints/")
-    checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    checkpoint_callback = ModelCheckpoint(
-        dirpath=str(checkpoint_dir),  # Ensure the path is correctly passed as a string
-        filename="customGAN-EMA-SSIM015-{epoch:02d}",
-        save_top_k=-1,
-        every_n_epochs=25,
-        verbose=True,
-    )
 
     # Check for GPU availability
     gpus = 1 if torch.cuda.is_available() else 0
@@ -232,7 +235,6 @@ def train(max_epochs: int = 200, wandb_run_name: str = "GAN-EMA-SSIM015-epoch500
     trainer = pl.Trainer(
         max_epochs=max_epochs,
         accelerator="gpu",
-        callbacks=[checkpoint_callback],
         devices=gpus,
         logger=wandb_logger,
     )
