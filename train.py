@@ -118,7 +118,8 @@ class GAN(pl.LightningModule):
         loss_g_id_ssim = 1 - self.ssim(gen_images_id, images)
         loss_g_id_mse = torch.mean((gen_images_id - images) ** 2) * 2
         loss_g_id = loss_g_id_ssim + loss_g_id_mse
-        loss_g = loss_g_div + loss_g_id
+        # loss_g = loss_g_div + loss_g_id
+        loss_g = loss_g_div
         if self.d_ema_g_ema_diff < 0.15:
             self.manual_backward(loss_g)
             self.opt_g.step()
