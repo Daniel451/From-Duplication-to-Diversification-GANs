@@ -1,5 +1,6 @@
 from torchvision import datasets, transforms
 from torch.utils.data import Dataset, DataLoader
+from kornia import augmentation as K
 
 
 class CIFAR10SingleClass(Dataset):
@@ -24,7 +25,7 @@ class CIFAR10SingleClass(Dataset):
 
 
 def get_single_cifar10_dataloader(
-    target_class, batch_size=64, num_workers=2, download_path="./data"
+    target_class, batch_size=64, num_workers=8, download_path="./data"
 ):
     """
     Returns CIFAR-10 data loaders for a specific class.
@@ -40,7 +41,20 @@ def get_single_cifar10_dataloader(
     """
 
     transform = transforms.Compose(
-        [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+        [
+            transforms.ToTensor(),
+            K.RandomHorizontalFlip(p=0.5),
+            K.RandomAffine(degrees=20, translate=(0.1, 0.1), scale=(0.8, 1.2), p=0.25),
+            K.RandomPerspective(distortion_scale=0.2, p=0.25),
+            K.RandomBrightness(0.3, 1.15, p=0.5),
+            K.RandomContrast(0.65, 1.15, p=0.5),
+            K.RandomGamma(gamma=(0.8, 1.15), p=0.4),
+            K.RandomSharpness(sharpness=0.3, p=0.25),
+            K.RandomSaturation(saturation=(0.7, 1.3), p=0.4),
+            # remove first dimension (unnecessarily added by kornia)
+            transforms.Lambda(lambda x: x.squeeze(0)),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ]
     )
 
     full_train_dataset = datasets.CIFAR10(
