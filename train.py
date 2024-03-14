@@ -6,7 +6,8 @@ from loguru import logger
 from pytorch_lightning.loggers import WandbLogger
 from datetime import datetime
 from src.models import Generator, Discriminator, DiscriminatorCustom
-from src.data import get_single_cifar10_dataloader as get_cifar10_dataloader
+# from src.data import get_single_cifar10_dataloader as get_cifar10_dataloader
+from src.data import get_cifar10_dataloader as get_cifar10_dataloader
 from pytorch_msssim import ssim, ms_ssim, SSIM, MS_SSIM
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pathlib import Path
@@ -192,7 +193,8 @@ class GAN(pl.LightningModule):
 
     def train_dataloader(self):
         logger.info("Loading training data...")
-        return get_cifar10_dataloader(target_class=4, batch_size=128, num_workers=8)[0]
+        # return get_cifar10_dataloader(target_class=4, batch_size=128, num_workers=8)[0]
+        return get_cifar10_dataloader(batch_size=128, num_workers=8)[0]
 
     def on_train_start(self) -> None:
         self.custom_experiment_id = self.trainer.logger.experiment.id
