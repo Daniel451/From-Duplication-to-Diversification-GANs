@@ -192,7 +192,7 @@ class GAN(pl.LightningModule):
 
     def train_dataloader(self):
         logger.info("Loading training data...")
-        return get_cifar10_dataloader(target_class=4, batch_size=128, num_workers=8)[0]
+        return get_cifar10_dataloader(target_class=4, batch_size=256, num_workers=16)[0]
 
     def on_train_start(self) -> None:
         self.custom_experiment_id = self.trainer.logger.experiment.id
