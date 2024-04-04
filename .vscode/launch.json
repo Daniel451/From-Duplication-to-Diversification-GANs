@@ -23,10 +23,18 @@
             "justMyCode": true
         },
         {
-            "name": "Debug Train",
+            "name": "Train BCE",
             "type": "python",
             "request": "launch",
-            "program": "train.py",
+            "program": "train_bce.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Train LSGAN",
+            "type": "python",
+            "request": "launch",
+            "program": "train_lsgan.py",
             "console": "integratedTerminal",
             "justMyCode": true
         },
