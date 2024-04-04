@@ -42,7 +42,11 @@ class DiscriminatorCustom(nn.Module):
             nn.Linear(128 * 8 * 8, 1),
         )
 
-    def forward(self, x):
+    def forward_logits(self, x):
         x = self.pipeline(x)
+        return x
+
+    def forward(self, x):
+        x = self.forward_logits(x)
         x = torch.sigmoid(x)
         return x

@@ -96,9 +96,9 @@ class GAN(pl.LightningModule):
         # Discriminator update
         self.opt_g.zero_grad()
         self.opt_d.zero_grad()
-        real_loss = self.criterion_D(self.discriminator(images), valid)
+        real_loss = self.criterion_D(self.discriminator.forward_logits(images), valid)
         fake_loss = self.criterion_D(
-            self.discriminator(self.generator(images, noise)), fake
+            self.discriminator.forward_logits(self.generator(images, noise)), fake
         )
         loss_d = (real_loss + fake_loss) / 2
         if self.d_ema_g_ema_diff > -0.15:
@@ -114,7 +114,7 @@ class GAN(pl.LightningModule):
         gen_imgs = self.generator(images, noise)
 
         # TODO: try out no soft-labels for generator (only for discriminator)
-        loss_g_div = self.criterion_G(self.discriminator(gen_imgs))
+        loss_g_div = self.criterion_G(self.discriminator.forward_logits(gen_imgs))
         # gen_images_id = self.generator(images, torch.zeros_like(noise))
         # loss_g_id_ssim = 1 - self.ssim(gen_images_id, images)
         # loss_g_id_mse = torch.mean((gen_images_id - images) ** 2) * 2
