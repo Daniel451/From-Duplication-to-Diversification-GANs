@@ -5,9 +5,8 @@ import wandb
 from loguru import logger
 from pytorch_lightning.loggers import WandbLogger
 from datetime import datetime
-from src.models import Generator, Discriminator, DiscriminatorCustom
+from src.models import Generator2 as Generator, Discriminator
 from src.data import get_single_cifar10_dataloader as get_cifar10_dataloader
-# from src.data import get_cifar10_dataloader as get_cifar10_dataloader
 from pytorch_msssim import ssim, ms_ssim, SSIM, MS_SSIM
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pathlib import Path
@@ -59,10 +58,7 @@ class GAN(pl.LightningModule):
             layer.apply(init_weights)
 
         # create discriminator
-        # self.discriminator = Discriminator().to(self.device)
-        self.discriminator = DiscriminatorCustom().to(self.device)
-        for layer in self.discriminator.modules():
-            layer.apply(init_weights)
+        self.discriminator = Discriminator().to(self.device)
 
         # exponential moving average losses for G and D
         self.g_ema = 0
@@ -70,7 +66,6 @@ class GAN(pl.LightningModule):
         self.d_ema_g_ema_diff = 0
 
         self.criterion = torch.nn.BCELoss()
-        # self.criterion = torch.nn.MSELoss()
         self.ssim = SSIM(data_range=1.0, size_average=True, channel=3)
         self.sample_val_images = None
 
@@ -119,8 +114,7 @@ class GAN(pl.LightningModule):
         loss_g_id_ssim = 1 - self.ssim(gen_images_id, images)
         loss_g_id_mse = torch.mean((gen_images_id - images) ** 2) * 2
         loss_g_id = loss_g_id_ssim + loss_g_id_mse
-        # loss_g = loss_g_div + loss_g_id
-        loss_g = loss_g_div
+        loss_g = loss_g_div + loss_g_id
         if self.d_ema_g_ema_diff < 0.15:
             self.manual_backward(loss_g)
             self.opt_g.step()
@@ -150,13 +144,11 @@ class GAN(pl.LightningModule):
                 )
 
         # Log generated images
-        if self.trainer.is_last_batch:
+        if batch_idx % 250 == 0:
             with torch.no_grad():
                 # Log generated images
                 img_grid = torchvision.utils.make_grid(gen_imgs, normalize=True)
                 img_grid_id = torchvision.utils.make_grid(gen_images_id, normalize=True)
-                img_grid_real = torchvision.utils.make_grid(images, normalize=True)
-
                 self.logger.experiment.log(
                     {
                         "images/generated": [
@@ -167,9 +159,15 @@ class GAN(pl.LightningModule):
                                 img_grid_id, caption="Generated Identity Images"
                             )
                         ],
+                    }
+                )
+                # Log real images
+                img_grid_real = torchvision.utils.make_grid(images, normalize=True)
+                self.logger.experiment.log(
+                    {
                         "images/real": [
                             wandb.Image(img_grid_real, caption="Generated Images")
-                        ],
+                        ]
                     }
                 )
 
@@ -177,14 +175,14 @@ class GAN(pl.LightningModule):
             "loss": loss_g,
             "log": {"loss_generator": loss_g},
         }
-    
+
     def configure_optimizers(self):
         optimizer_g = torch.optim.Adam(
-            self.generator.get_generative_parameters(), lr=0.0001, betas=(0.5, 0.999)
+            self.generator.get_generative_parameters(), lr=0.0002, betas=(0.5, 0.999)
         )
         # TODO: try out different learning rates for discriminator
         optimizer_d = torch.optim.Adam(
-            self.discriminator.parameters(), lr=0.0001, betas=(0.5, 0.999)
+            self.discriminator.parameters(), lr=0.0002, betas=(0.5, 0.999)
         )
         # Get both optimizers
         self.opt_g = optimizer_g
@@ -193,23 +191,28 @@ class GAN(pl.LightningModule):
 
     def train_dataloader(self):
         logger.info("Loading training data...")
-        return get_cifar10_dataloader(target_class=4, batch_size=256, num_workers=16)[0]
+        return get_cifar10_dataloader(target_class=4, batch_size=128, num_workers=8)[0]
 
     def on_train_start(self) -> None:
         self.custom_experiment_id = self.trainer.logger.experiment.id
         # Define the directory path for model checkpoints
-        self.checkpoint_dir = Path("./model_checkpoints/gan-ema/", self.custom_experiment_id)
+        self.checkpoint_dir = Path("./model_checkpoints/", self.custom_experiment_id)
         # Create the directory if it does not exist
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     def on_train_epoch_end(self) -> None:
         if self.trainer.current_epoch % 25 == 0:
             # save PyTorch
-            torch.save(self.generator.state_dict(), Path(self.checkpoint_dir, f"generator_{self.trainer.current_epoch}.pt").as_posix())
+            torch.save(
+                self.generator.state_dict(),
+                Path(
+                    self.checkpoint_dir, f"generator_{self.trainer.current_epoch}.pt"
+                ).as_posix(),
+            )
 
 
 @app.command()
-def train(max_epochs: int = 500, wandb_run_name: str = "GAN-EMA-SSIM015-epoch500"):
+def train(max_epochs: int = 200, wandb_run_name: str = "GAN-EMA-SSIM015-epoch500"):
     current_time = datetime.now()
     session_name = current_time.strftime("%Y-%m-%d_%H-%M-%S")
     full_wandb_run_name = f"{wandb_run_name}-{session_name}"
