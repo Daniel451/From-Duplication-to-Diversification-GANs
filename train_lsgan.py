@@ -193,7 +193,7 @@ class GAN(pl.LightningModule):
         )
         # TODO: try out different learning rates for discriminator
         optimizer_d = torch.optim.Adam(
-            self.discriminator.parameters(), lr=0.00015, betas=(0.5, 0.999)
+            self.discriminator.parameters(), lr=0.0002, betas=(0.5, 0.999)
         )
         # Get both optimizers
         self.opt_g = optimizer_g
