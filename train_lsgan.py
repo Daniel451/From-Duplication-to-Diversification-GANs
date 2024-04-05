@@ -117,7 +117,8 @@ class GAN(pl.LightningModule):
 
         # TODO: try out no soft-labels for generator (only for discriminator)
         loss_g_div = self.criterion_G(self.discriminator.forward_logits(gen_imgs))
-        gen_images_id = self.generator(images, torch.zeros_like(noise))
+        # scaled (down) normal distribution noise for identity loss
+        gen_images_id = self.generator(images, torch.randn_like(noise)*0.1)
         loss_g_id_ssim = 1 - self.ssim(gen_images_id, images)
         # loss_g_id_mse = torch.mean((gen_images_id - images) ** 2) * 2
         loss_g_id_mse = torch.mean((gen_images_id - images) ** 2)
