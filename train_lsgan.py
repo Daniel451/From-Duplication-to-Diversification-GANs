@@ -118,11 +118,13 @@ class GAN(pl.LightningModule):
         gen_images_id = self.generator(images, torch.zeros_like(noise))
         loss_g_id_ssim = 1 - self.ssim(gen_images_id, images)
         # loss_g_id_mse = torch.mean((gen_images_id - images) ** 2) * 2
-        # loss_g_id = loss_g_id_ssim + loss_g_id_mse
-        loss_g_id = loss_g_id_ssim
+        loss_g_id_mse = torch.mean((gen_images_id - images) ** 2)
+        loss_g_id = loss_g_id_ssim + loss_g_id_mse
+        # loss_g_id = loss_g_id_ssim
         loss_g = loss_g_div + loss_g_id
         # loss_g = loss_g_div
-        if self.d_ema_g_ema_diff < 0.15:
+        # if self.d_ema_g_ema_diff < 0.15:
+        if self.d_ema_g_ema_diff < 0.1:
             self.manual_backward(loss_g)
             self.opt_g.step()
 
@@ -143,8 +145,8 @@ class GAN(pl.LightningModule):
                         "losses/g_ema": self.g_ema,
                         "losses/d": loss_d,
                         "losses/g_div": loss_g_div,
-                        # "losses/g_id_ssim": loss_g_id_ssim,
-                        # "losses/g_id_mse": loss_g_id_mse,
+                        "losses/g_id_ssim": loss_g_id_ssim,
+                        "losses/g_id_mse": loss_g_id_mse,
                         "losses/g_id": loss_g_id,
                         "losses/g": loss_g,
                     }
@@ -189,7 +191,7 @@ class GAN(pl.LightningModule):
         )
         # TODO: try out different learning rates for discriminator
         optimizer_d = torch.optim.Adam(
-            self.discriminator.parameters(), lr=0.0002, betas=(0.5, 0.999)
+            self.discriminator.parameters(), lr=0.00015, betas=(0.5, 0.999)
         )
         # Get both optimizers
         self.opt_g = optimizer_g
