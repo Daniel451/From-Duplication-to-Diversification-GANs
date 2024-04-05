@@ -21,6 +21,16 @@ class CustomLayer(nn.Module):
     ):
         super().__init__()
 
+        self.conv = nn.Conv2d(
+            in_channels=in_channels,
+            # options:encoding, decoding,keep the same
+            # decide the output channel based on your goal
+            # decoding might more sense since we want diversity in the output
+            out_channels=out_channels,
+            kernel_size=3,
+            padding=1,
+        )
+
         match norm_layer:
             case None:
                 self.norm_layer = nn.Identity()
@@ -28,19 +38,14 @@ class CustomLayer(nn.Module):
                 self.norm_layer = norm_layer(out_channels)
             case nn.LocalResponseNorm:
                 self.norm_layer = norm_layer(size=2)
+            case nn.utils.spectral_norm:
+                self.conv = nn.utils.spectral_norm(self.conv)
+                self.norm_layer = nn.Identity()
+                
 
         self.sequential = nn.Sequential(
-            # 1st layer
-            nn.Conv2d(
-                in_channels=in_channels,
-                # options:encoding, decoding,keep the same
-                # decide the output channel based on your goal
-                # decoding might more sense since we want diversity in the output
-                out_channels=out_channels,
-                kernel_size=3,
-                padding=1,
-            ),
             # TODO: Adaptive Instance Normalization
+            self.conv,
             self.norm_layer,
             activation_function(),
         )

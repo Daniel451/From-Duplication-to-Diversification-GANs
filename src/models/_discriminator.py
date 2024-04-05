@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import timm
+import torch.utils
 
 from ._generator import StackedDecodingModule
 
@@ -29,7 +30,7 @@ class DiscriminatorCustom(nn.Module):
     def __init__(self):
         super().__init__()
 
-        norm_layer = nn.InstanceNorm2d
+        norm_layer = nn.utils.spectral_norm
         self.pipeline = nn.Sequential(
             StackedDecodingModule(3, 32, norm_layer=norm_layer),
             StackedDecodingModule(32, 64, norm_layer=norm_layer),
