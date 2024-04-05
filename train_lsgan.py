@@ -86,7 +86,8 @@ class GAN(pl.LightningModule):
         images, _ = batch
         images = images.to(self.device)
         batch_size = images.size(0)
-        noise = torch.rand(size=(batch_size, 56, 2, 2)).to(self.device)
+        # noise = torch.rand(size=(batch_size, 56, 2, 2)).to(self.device)
+        noise = torch.randn(size=(batch_size, 56, 2, 2)).to(self.device)
 
         # soft labels
         # TODO: try out more or less randomness
