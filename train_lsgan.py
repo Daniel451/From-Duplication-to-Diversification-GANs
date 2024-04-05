@@ -101,7 +101,8 @@ class GAN(pl.LightningModule):
             self.discriminator.forward_logits(self.generator(images, noise)), fake
         )
         loss_d = (real_loss + fake_loss) / 2
-        if self.d_ema_g_ema_diff > -0.15:
+        # if self.d_ema_g_ema_diff > -0.15:
+        if self.d_ema_g_ema_diff > -0.1:
             self.manual_backward(loss_d)
             self.opt_d.step()
 
@@ -123,8 +124,7 @@ class GAN(pl.LightningModule):
         # loss_g_id = loss_g_id_ssim
         loss_g = loss_g_div + loss_g_id
         # loss_g = loss_g_div
-        # if self.d_ema_g_ema_diff < 0.15:
-        if self.d_ema_g_ema_diff < 0.1:
+        if self.d_ema_g_ema_diff < 0.15:
             self.manual_backward(loss_g)
             self.opt_g.step()
 
