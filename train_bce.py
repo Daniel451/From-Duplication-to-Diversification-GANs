@@ -10,27 +10,10 @@ from src.data import get_single_cifar10_dataloader as get_cifar10_dataloader
 from pytorch_msssim import ssim, ms_ssim, SSIM, MS_SSIM
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pathlib import Path
-import random
-import numpy as np
-import os
+
 import typer
 
 app = typer.Typer()
-
-
-# Function to set random seeds
-def set_random_seeds(seed_value=42):
-    random.seed(seed_value)  # Python random module
-    np.random.seed(seed_value)  # Numpy module
-    torch.manual_seed(seed_value)  # PyTorch
-    torch.cuda.manual_seed_all(seed_value)  # for multi-GPU
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-    os.environ["PYTHONHASHSEED"] = str(seed_value)
-
-
-# Set random seeds for reproducibility
-set_random_seeds(seed_value=42)
 
 
 # TODO: try different weight init methods
@@ -65,7 +48,13 @@ class GAN(pl.LightningModule):
         self.d_ema = 0
         self.d_ema_g_ema_diff = 0
 
-        self.criterion = torch.nn.BCELoss()
+        # self.criterion = torch.nn.BCELoss()
+        # For the discriminator
+        self.criterion_D = lambda output, target: 0.5 * torch.mean(
+            (output - target) ** 2
+        )
+        # For the generator
+        self.criterion_G = lambda output: 0.5 * torch.mean((output - 1) ** 2)
         self.ssim = SSIM(data_range=1.0, size_average=True, channel=3)
         self.sample_val_images = None
 
@@ -83,17 +72,15 @@ class GAN(pl.LightningModule):
         batch_size = images.size(0)
         noise = torch.rand(size=(batch_size, 56, 2, 2)).to(self.device)
 
-        # soft labels
-        # TODO: try out more or less randomness
-        valid = torch.rand((batch_size, 1), device=self.device) * 0.1 + 0.9
-        fake = torch.rand((batch_size, 1), device=self.device) * 0.1
-
         # Discriminator update
         self.opt_g.zero_grad()
         self.opt_d.zero_grad()
-        real_loss = self.criterion(self.discriminator(images), valid)
-        fake_loss = self.criterion(
-            self.discriminator(self.generator(images, noise)), fake
+        real_loss = self.criterion_D(
+            self.discriminator(images), torch.ones_like(self.discriminator(images))
+        )
+        fake_loss = self.criterion_D(
+            self.discriminator(self.generator(images, noise)),
+            torch.zeros_like(self.discriminator(self.generator(images, noise))),
         )
         loss_d = (real_loss + fake_loss) / 2
         if self.d_ema_g_ema_diff > -0.15:
@@ -109,7 +96,8 @@ class GAN(pl.LightningModule):
         gen_imgs = self.generator(images, noise)
 
         # TODO: try out no soft-labels for generator (only for discriminator)
-        loss_g_div = self.criterion(self.discriminator(gen_imgs), valid)
+        loss_g_div = self.criterion_G(self.discriminator(gen_imgs))
+        # loss_g_div = self.criterion(self.discriminator(gen_imgs), valid)
         gen_images_id = self.generator(images, torch.zeros_like(noise))
         loss_g_id_ssim = 1 - self.ssim(gen_images_id, images)
         loss_g_id_mse = torch.mean((gen_images_id - images) ** 2) * 2
