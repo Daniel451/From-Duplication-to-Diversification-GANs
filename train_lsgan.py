@@ -118,7 +118,7 @@ class GAN(pl.LightningModule):
         # TODO: try out no soft-labels for generator (only for discriminator)
         loss_g_div = self.criterion_G(self.discriminator.forward_logits(gen_imgs))
         # scaled (down) normal distribution noise for identity loss
-        gen_images_id = self.generator(images, torch.randn_like(noise)*0.1)
+        gen_images_id = self.generator(images, torch.randn_like(noise) * 0.1)
         loss_g_id_ssim = 1 - self.ssim(gen_images_id, images)
         # loss_g_id_mse = torch.mean((gen_images_id - images) ** 2) * 2
         loss_g_id_mse = torch.mean((gen_images_id - images) ** 2)
@@ -240,7 +240,10 @@ def train(
     wandb_logger = WandbLogger()
 
     # Check for GPU availability
-    gpus = 1 if torch.cuda.is_available() else 0
+    if torch.cuda.is_available() or torch.backends.mps.is_available():
+        gpus = 1
+    else:
+        gpus = 0
 
     logger.info("Starting training...")
 
@@ -249,10 +252,16 @@ def train(
         "high"
     )  # or 'high' based on your precision needs
 
+    # choose accelerator
+    if torch.cuda.is_available() or torch.backends.mps.is_available():
+        accelerator = "gpu"
+    else:
+        accelerator = "cpu"
+
     # Initialize the Trainer with the provided max_epochs
     trainer = pl.Trainer(
         max_epochs=max_epochs,
-        accelerator="gpu",
+        accelerator=accelerator,
         devices=gpus,
         logger=wandb_logger,
     )
