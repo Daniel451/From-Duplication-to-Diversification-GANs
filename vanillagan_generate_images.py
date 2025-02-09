@@ -32,6 +32,8 @@ def generate_images(generator, num_images, device, batch_size=10, latent_dim=100
 
 if __name__ == "__main__":
     device = torch.device("cpu")  # Use 'cuda' if GPU is available
-    checkpoint_path = "/home/zeynep/repos/github/From-Duplication-to-Diversification-GANs/iwt11afk/generator_175.pt"  # Update with the actual path
+    checkpoint_path = (
+        "model_checkpoints/iwt11afk/generator_175.pt"  # Update with the actual path
+    )
     generator = load_generator(checkpoint_path, device)
     generate_images(generator, 5000, device)  # Generate 5000 images
